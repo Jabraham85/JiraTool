@@ -1912,20 +1912,11 @@ class TabForm(DescMixin):
             else:
                 combo["values"] = all_opts
 
-            # Restore cursor position and clear auto-selection so
-            # the user can keep typing uninterrupted.
             try:
                 combo.icursor(cursor_pos)
                 combo.selection_clear()
             except Exception:
                 pass
-
-            # Show the dropdown without stealing focus or selecting an item
-            if q:
-                try:
-                    combo.tk.call("ttk::combobox::Post", combo)
-                except Exception:
-                    pass
 
         def _on_key(event) -> None:
             if event.keysym in self._AUTOCOMPLETE_SKIP:
