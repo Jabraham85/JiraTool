@@ -13,6 +13,8 @@ jira_debug.log
 build_entry.py
 _create_release.py
 _verify_release.py
+*.new.py
+crash.log
 
 # IDE
 .vscode/
