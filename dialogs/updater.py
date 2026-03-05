@@ -292,23 +292,24 @@ class UpdaterMixin:
             except Exception:
                 pass
 
-            def _prompt_restart():
+            def _auto_restart():
                 try:
                     dlg.destroy()
                 except Exception:
                     pass
-                if messagebox.askyesno(
-                        "Update Installed",
-                        f"Version v{remote_version} has been installed.\n\n"
-                        "The app needs to restart to apply the update.\n"
-                        "Restart now?"):
-                    try:
-                        os.startfile(target_path)
-                    except Exception:
-                        import subprocess
-                        subprocess.Popen([target_path], close_fds=True)
-                    self.after(200, self.destroy)
-            self.after(0, _prompt_restart)
+                self._log_startup(
+                    f"v{remote_version} installed. Restarting...", "step")
+                messagebox.showinfo(
+                    "Update Installed",
+                    f"Version v{remote_version} has been installed.\n\n"
+                    "The app will now restart.")
+                try:
+                    os.startfile(target_path)
+                except Exception:
+                    import subprocess
+                    subprocess.Popen([target_path], close_fds=True)
+                self.after(200, self.destroy)
+            self.after(0, _auto_restart)
         else:
             # Running from source — save the downloaded file and inform user
             self.meta["skipped_update_version"] = ""
