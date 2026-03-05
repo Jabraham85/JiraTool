@@ -12,9 +12,9 @@ import uuid
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 
-from .config import HEADERS, FETCH_FIELDS
-from .storage import perform_jira_request, save_storage
-from .utils import debug_log, _bind_mousewheel, _dedup_list_items
+from config import HEADERS, FETCH_FIELDS
+from storage import perform_jira_request, save_storage
+from utils import debug_log, _bind_mousewheel, _dedup_list_items
 
 
 class ListViewMixin:

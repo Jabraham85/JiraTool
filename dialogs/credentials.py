@@ -6,8 +6,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import webbrowser
 
-from ..storage import save_storage
-from ..utils import debug_log
+from storage import save_storage
+from utils import debug_log
 
 
 class CredentialsMixin:

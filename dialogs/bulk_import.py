@@ -8,9 +8,9 @@ import uuid
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from ..config import HEADERS
-from ..storage import save_storage
-from ..utils import debug_log, _bind_mousewheel
+from config import HEADERS
+from storage import save_storage
+from utils import debug_log, _bind_mousewheel
 
 
 class BulkImportMixin:

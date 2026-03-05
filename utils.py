@@ -6,7 +6,7 @@ import datetime
 import tkinter as tk
 from tkinter import ttk
 
-from .config import DEBUG_LOG
+from config import DEBUG_LOG
 
 
 # ---------------- Mouse wheel scroll helper ----------------

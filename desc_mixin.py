@@ -18,7 +18,7 @@ import webbrowser
 from html.parser import HTMLParser
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from .utils import _bind_mousewheel, _bind_mousewheel_to_target, debug_log
+from utils import _bind_mousewheel, _bind_mousewheel_to_target, debug_log
 
 
 # ── Issue-key link helpers ────────────────────────────────────────────────────

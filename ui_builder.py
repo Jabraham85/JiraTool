@@ -4,9 +4,9 @@ UI construction and theme mixin for Avalanche.
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from .utils import _bind_mousewheel, _bind_mousewheel_to_target, _NotebookWithCloseTabs, debug_log
-from .storage import save_storage
-from .config import HEADERS
+from utils import _bind_mousewheel, _bind_mousewheel_to_target, _NotebookWithCloseTabs, debug_log
+from storage import save_storage
+from config import HEADERS
 
 
 class UIBuilderMixin:
@@ -65,13 +65,8 @@ class UIBuilderMixin:
         left_canvas.bind("<Configure>", _left_canvas_configure)
         _bind_mousewheel(left_canvas, "vertical")
         left_canvas.after_idle(lambda: left_canvas.configure(scrollregion=left_canvas.bbox("all")))
-        # Header
-        header_frame = ttk.Frame(left)
-        header_frame.pack(fill="x", padx=8, pady=(12, 8))
-        ttk.Label(header_frame, text="Avalanche", font=("Segoe UI", 14, "bold")).pack(anchor="w")
-        ttk.Label(header_frame, text="Jira Template Creator", font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Separator(left, orient="horizontal").pack(fill="x", padx=8, pady=(0, 8))
-        ttk.Label(left, text="Templates", font=("Segoe UI", 11, "bold")).pack(anchor="w", padx=8, pady=(4, 0))
+        # Templates header
+        ttk.Label(left, text="Templates", font=("Segoe UI", 11, "bold")).pack(anchor="w", padx=8, pady=(12, 0))
         tpl_frame = ttk.Frame(left)
         self._tut_tpl_frame = tpl_frame
         tpl_frame.pack(fill="both", expand=True, padx=8, pady=(4, 8))
@@ -129,7 +124,7 @@ class UIBuilderMixin:
         ttk.Button(help_frame, text="Show Tutorial", command=lambda: self._run_tutorial(force=True)).pack(fill="x", pady=2)
         ttk.Button(help_frame, text="Check for Updates",
                    command=lambda: self._check_for_updates(manual=True)).pack(fill="x", pady=2)
-        from .config import APP_VERSION as _v
+        from config import APP_VERSION as _v
         ttk.Label(help_frame, text=f"v{_v}", foreground="#888888",
                   font=("Segoe UI", 8)).pack(anchor="e", pady=(2, 0))
         # Bundle

@@ -6,8 +6,8 @@ import json
 import traceback
 import time
 
-from .config import TEMPLATES_FILE, DEBUG_LOG, HEADERS
-from .utils import debug_log
+from config import TEMPLATES_FILE, DEBUG_LOG, HEADERS
+from utils import debug_log
 
 try:
     import requests

@@ -11,9 +11,9 @@ from tkinter import ttk, messagebox
 
 import requests
 
-from ..config import APP_VERSION, GITHUB_VERSION_URL
-from ..storage import save_storage
-from ..utils import debug_log
+from config import APP_VERSION, GITHUB_VERSION_URL
+from storage import save_storage
+from utils import debug_log
 
 
 def _parse_version(v: str):

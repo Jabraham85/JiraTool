@@ -13,9 +13,9 @@ from tkinter import ttk, messagebox, simpledialog, filedialog
 import html as _html
 from html.parser import HTMLParser
 
-from .config import HEADERS, MULTISELECT_FIELDS, FETCHABLE_OPTION_FIELDS
-from .utils import _bind_mousewheel, _bind_mousewheel_to_target, _bind_mousewheel_to_target_recursive, debug_log
-from .desc_mixin import DescMixin
+from config import HEADERS, MULTISELECT_FIELDS, FETCHABLE_OPTION_FIELDS
+from utils import _bind_mousewheel, _bind_mousewheel_to_target, _bind_mousewheel_to_target_recursive, debug_log
+from desc_mixin import DescMixin
 
 
 def _patch_tkinterweb_caret_hide():
@@ -985,7 +985,7 @@ class TabForm(DescMixin):
                             body["nextPageToken"] = token
                         try:
                             url = f"{session._jira_base}/rest/api/3/search/jql"
-                            from .jira_api import perform_jira_request
+                            from jira_api import perform_jira_request
                             resp = perform_jira_request(session, "POST", url,
                                                         json_body=body, timeout=60)
                             resp.raise_for_status()
@@ -1203,7 +1203,7 @@ class TabForm(DescMixin):
             def _worker():
                 try:
                     jql = _build_jql(q)
-                    from .jira_api import perform_jira_request
+                    from jira_api import perform_jira_request
                     url = f"{session._jira_base}/rest/api/3/search/jql"
                     body = {
                         "jql": jql,
@@ -1293,7 +1293,7 @@ class TabForm(DescMixin):
                             payload = {"fields": {"customfield_10014": epic_key}}
                         else:
                             payload = {"fields": {"parent": {"key": epic_key}}}
-                        from .jira_api import perform_jira_request
+                        from jira_api import perform_jira_request
                         url = f"{session._jira_base}/rest/api/3/issue/{child_key}"
                         resp = perform_jira_request(session, "PUT", url,
                                                     json_body=payload, timeout=30)
@@ -1376,7 +1376,7 @@ class TabForm(DescMixin):
                     if ck in existing_keys:
                         continue
                     try:
-                        from .config import FETCH_FIELDS
+                        from config import FETCH_FIELDS
                         issue_json = root.fetch_issue_details(
                             session, ck, fields=FETCH_FIELDS)
                         issue_dict = root._map_issue_json_to_dict(issue_json)
@@ -1390,10 +1390,10 @@ class TabForm(DescMixin):
                     def _add():
                         try:
                             root.list_items.extend(new_items)
-                            from .utils import _dedup_list_items
+                            from utils import _dedup_list_items
                             root.list_items = _dedup_list_items(root.list_items)
                             root.meta["fetched_issues"] = list(root.list_items)
-                            from .storage import save_storage
+                            from storage import save_storage
                             save_storage(root.templates, root.meta)
                             root._rebuild_list_view()
                         except Exception:
@@ -1900,23 +1900,39 @@ class TabForm(DescMixin):
             _after_id[0] = None
             all_opts = list(self.meta_options.get(hdr, []))
             q = var.get().lower().strip()
+
+            try:
+                cursor_pos = combo.index(tk.INSERT)
+            except Exception:
+                cursor_pos = tk.END
+
             if q:
                 filtered = [v for v in all_opts if q in v.lower()]
                 combo["values"] = filtered if filtered else all_opts
-                # Open the dropdown to show the filtered results
-                try:
-                    combo.event_generate("<Down>")
-                except Exception:
-                    pass
             else:
                 combo["values"] = all_opts
+
+            # Restore cursor position and clear auto-selection so
+            # the user can keep typing uninterrupted.
+            try:
+                combo.icursor(cursor_pos)
+                combo.selection_clear()
+            except Exception:
+                pass
+
+            # Show the dropdown without stealing focus or selecting an item
+            if q:
+                try:
+                    combo.tk.call("ttk::combobox::Post", combo)
+                except Exception:
+                    pass
 
         def _on_key(event) -> None:
             if event.keysym in self._AUTOCOMPLETE_SKIP:
                 return
             if _after_id[0]:
                 combo.after_cancel(_after_id[0])
-            _after_id[0] = combo.after(120, _filter)
+            _after_id[0] = combo.after(150, _filter)
 
         def _on_selected(event=None) -> None:
             # Restore full list after a selection so the next open shows everything

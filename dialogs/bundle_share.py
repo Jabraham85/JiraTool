@@ -20,8 +20,8 @@ import datetime
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from ..utils import debug_log, _dedup_list_items
-from ..storage import save_storage
+from utils import debug_log, _dedup_list_items
+from storage import save_storage
 
 _BUNDLE_VERSION = "1.0"
 _FILE_EXT = ".avl"

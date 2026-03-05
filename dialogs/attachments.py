@@ -12,7 +12,7 @@ import traceback
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-from ..utils import debug_log
+from utils import debug_log
 
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif", ".ico"}
 

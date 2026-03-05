@@ -7,7 +7,7 @@ import copy
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from .utils import debug_log
+from utils import debug_log
 
 
 class VariablesMixin:

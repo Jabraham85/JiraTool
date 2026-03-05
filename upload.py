@@ -10,9 +10,9 @@ import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 
-from .config import FETCH_FIELDS, HEADERS
-from .storage import perform_jira_request, save_storage
-from .utils import debug_log, _dedup_list_items
+from config import FETCH_FIELDS, HEADERS
+from storage import perform_jira_request, save_storage
+from utils import debug_log, _dedup_list_items
 
 
 class UploadMixin:

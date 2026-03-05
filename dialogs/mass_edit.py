@@ -4,8 +4,8 @@ MassEditMixin — Mass edit selected Jira issues.
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from ..storage import perform_jira_request, save_storage
-from ..utils import debug_log
+from storage import perform_jira_request, save_storage
+from utils import debug_log
 
 
 class MassEditMixin:

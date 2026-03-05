@@ -8,9 +8,9 @@ import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from ..config import _JIRA_FIELDS_FALLBACK
-from ..storage import perform_jira_request, save_storage
-from ..utils import debug_log, _bind_mousewheel
+from config import _JIRA_FIELDS_FALLBACK
+from storage import perform_jira_request, save_storage
+from utils import debug_log, _bind_mousewheel
 
 
 class RemindersMixin:

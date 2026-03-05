@@ -10,6 +10,9 @@ build/
 templates.json
 jira_debug.log
 *.old.exe
+build_entry.py
+_create_release.py
+_verify_release.py
 
 # IDE
 .vscode/

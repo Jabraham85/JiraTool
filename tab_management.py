@@ -12,10 +12,10 @@ import threading
 import tkinter as tk
 from tkinter import ttk, simpledialog, filedialog, messagebox
 
-from .config import HEADERS, FETCH_FIELDS, FETCHABLE_OPTION_FIELDS, MULTISELECT_FIELDS
-from .storage import save_storage
-from .utils import debug_log, _dedup_list_items
-from .tab_form import TabForm
+from config import HEADERS, FETCH_FIELDS, FETCHABLE_OPTION_FIELDS, MULTISELECT_FIELDS
+from storage import save_storage
+from utils import debug_log, _dedup_list_items
+from tab_form import TabForm
 
 
 class TabManagementMixin:

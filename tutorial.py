@@ -5,8 +5,8 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from .utils import debug_log, _bind_mousewheel
-from .storage import save_storage
+from utils import debug_log, _bind_mousewheel
+from storage import save_storage
 
 
 class TutorialMixin:

@@ -15,9 +15,9 @@ try:
 except Exception:
     requests = None
 
-from .config import FETCH_FIELDS, _JIRA_FIELDS_FALLBACK, DEBUG_LOG
-from .storage import perform_jira_request, save_storage
-from .utils import debug_log
+from config import FETCH_FIELDS, _JIRA_FIELDS_FALLBACK, DEBUG_LOG
+from storage import perform_jira_request, save_storage
+from utils import debug_log
 
 
 class JiraAPIMixin:

@@ -8,26 +8,26 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from .config import TEMPLATES_FILE, HEADERS, DEBUG_LOG, FETCH_FIELDS, APP_VERSION
-from .storage import load_storage, save_storage
-from .utils import debug_log, _bind_mousewheel, _bind_mousewheel_to_target, _dedup_list_items
-from .tab_form import TabForm
-from .jira_api import JiraAPIMixin
-from .ui_builder import UIBuilderMixin
-from .tab_management import TabManagementMixin
-from .list_view import ListViewMixin
-from .variables import VariablesMixin
-from .upload import UploadMixin
-from .tutorial import TutorialMixin
-from .dialogs.credentials import CredentialsMixin
-from .dialogs.attachments import AttachmentsMixin
-from .dialogs.fetch import FetchMixin
-from .dialogs.bulk_import import BulkImportMixin
-from .dialogs.mass_edit import MassEditMixin
-from .dialogs.reminders import RemindersMixin
-from .dialogs.upload_dialog import UploadDialogMixin
-from .dialogs.bundle_share import BundleShareMixin
-from .dialogs.updater import UpdaterMixin
+from config import TEMPLATES_FILE, HEADERS, DEBUG_LOG, FETCH_FIELDS, APP_VERSION
+from storage import load_storage, save_storage
+from utils import debug_log, _bind_mousewheel, _bind_mousewheel_to_target, _dedup_list_items
+from tab_form import TabForm
+from jira_api import JiraAPIMixin
+from ui_builder import UIBuilderMixin
+from tab_management import TabManagementMixin
+from list_view import ListViewMixin
+from variables import VariablesMixin
+from upload import UploadMixin
+from tutorial import TutorialMixin
+from dialogs.credentials import CredentialsMixin
+from dialogs.attachments import AttachmentsMixin
+from dialogs.fetch import FetchMixin
+from dialogs.bulk_import import BulkImportMixin
+from dialogs.mass_edit import MassEditMixin
+from dialogs.reminders import RemindersMixin
+from dialogs.upload_dialog import UploadDialogMixin
+from dialogs.bundle_share import BundleShareMixin
+from dialogs.updater import UpdaterMixin
 
 
 class AvalancheApp(
