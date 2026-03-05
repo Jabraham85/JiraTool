@@ -2,6 +2,7 @@
 AvalancheApp — main application class inheriting from all mixins.
 """
 import os
+import sys
 import json
 import traceback
 import threading
