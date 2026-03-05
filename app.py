@@ -127,7 +127,8 @@ class AvalancheApp(
         self._begin_startup()
 
     def _cleanup_old_update(self):
-        """Remove leftover .old files from a previous EXE update."""
+        """Remove leftover .old files and stale PyInstaller _MEI* temp dirs."""
+        import shutil, time
         try:
             if getattr(sys, "frozen", False):
                 exe = sys.executable
@@ -139,10 +140,35 @@ class AvalancheApp(
             base, ext = os.path.splitext(os.path.basename(exe))
             old = os.path.join(d, f"{base}.old{ext}")
             if os.path.exists(old):
-                os.remove(old)
-                debug_log(f"Cleaned up old update file: {old}")
+                try:
+                    os.remove(old)
+                    debug_log(f"Cleaned up old update file: {old}")
+                except Exception:
+                    pass
         except Exception:
             pass
+
+        # Clean up stale _MEI* temp directories from previous PyInstaller runs
+        if getattr(sys, "frozen", False):
+            try:
+                tmp = os.path.dirname(sys._MEIPASS)
+                current_mei = os.path.basename(sys._MEIPASS)
+                now = time.time()
+                for name in os.listdir(tmp):
+                    if not name.startswith("_MEI") or name == current_mei:
+                        continue
+                    p = os.path.join(tmp, name)
+                    if not os.path.isdir(p):
+                        continue
+                    try:
+                        age = now - os.path.getctime(p)
+                        if age > 30:
+                            shutil.rmtree(p, ignore_errors=True)
+                            debug_log(f"Cleaned stale temp dir: {p}")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
     def _build_welcome_tab(self):
         """Create the Welcome landing pad tab."""
