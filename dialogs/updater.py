@@ -297,18 +297,24 @@ class UpdaterMixin:
                     dlg.destroy()
                 except Exception:
                     pass
-                self._log_startup(
-                    f"v{remote_version} installed. Restarting...", "step")
-                messagebox.showinfo(
-                    "Update Installed",
-                    f"Version v{remote_version} has been installed.\n\n"
-                    "The app will now restart.")
+
+                # Fully shut down the old app before launching the new one
                 try:
-                    os.startfile(target_path)
+                    self.destroy()
                 except Exception:
-                    import subprocess
-                    subprocess.Popen([target_path], close_fds=True)
-                self.after(200, self.destroy)
+                    pass
+
+                import subprocess
+                try:
+                    subprocess.Popen([target_path], close_fds=True,
+                                     creationflags=subprocess.DETACHED_PROCESS)
+                except Exception:
+                    try:
+                        os.startfile(target_path)
+                    except Exception:
+                        pass
+
+                os._exit(0)
             self.after(0, _auto_restart)
         else:
             # Running from source — save the downloaded file and inform user
