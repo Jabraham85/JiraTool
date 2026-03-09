@@ -2,7 +2,7 @@
 Avalanche Jira Template Creator — shared constants and configuration.
 """
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 GITHUB_VERSION_URL = "https://raw.githubusercontent.com/Jabraham85/JiraTool/main/version.json"
 
 TEMPLATES_FILE = "templates.json"
@@ -40,6 +40,7 @@ HEADERS = [
 FETCHABLE_OPTION_FIELDS = {
     "Project key", "Issue Type", "Status", "Priority",
     "Components", "Labels", "Reporter",
+    "Sprint", "Fix Version",
 }
 
 MULTISELECT_FIELDS = {"Labels"}

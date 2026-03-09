@@ -502,7 +502,42 @@ class ListViewMixin:
         result["Original Estimate"]  = _fmt_seconds(fields.get("timeoriginalestimate"))
         result["Remaining Estimate"] = _fmt_seconds(fields.get("timeestimate"))
 
+        self._harvest_options_from_ticket(result)
+
         return result
+
+    # ── field-option harvesting ────────────────────────────────────────
+    _HARVEST_FIELDS = {
+        "Issue Type":  False,
+        "Status":      False,
+        "Priority":    False,
+        "Assignee":    False,
+        "Reporter":    False,
+        "Sprint":      False,
+        "Fix Version": True,
+        "Labels":      True,
+        "Components":  True,
+    }
+
+    def _harvest_options_from_ticket(self, ticket: dict):
+        """Extract field values from a mapped ticket and merge them into
+        the stored option lists so dropdowns always reflect real Jira data."""
+        opts = self.meta.setdefault("options", {})
+        changed = False
+        for field_name, is_multi in self._HARVEST_FIELDS.items():
+            val = (ticket.get(field_name) or "").strip()
+            if not val:
+                continue
+            existing = set(opts.get(field_name) or [])
+            if is_multi:
+                parts = [p.strip() for p in val.replace(",", ";").split(";") if p.strip()]
+            else:
+                parts = [val]
+            for p in parts:
+                if p and p not in existing:
+                    existing.add(p)
+                    changed = True
+            opts[field_name] = sorted(existing, key=lambda x: x.lower())
 
     def _auto_refresh_from_jira(self, key, initial_data, tabform=None):
         """Silently refresh a ticket from Jira in a background thread.

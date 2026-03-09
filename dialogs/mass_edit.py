@@ -18,6 +18,8 @@ class MassEditMixin:
         ("Components",  "components",  "text"),
         ("Assignee",    "assignee",    "text"),
         ("Status",      "status",      "transition"),
+        ("Sprint",      "customfield_10020", "select"),
+        ("Fix Version", "fixVersions", "select"),
     ]
 
     def _mass_edit_selected(self):
@@ -192,11 +194,6 @@ class MassEditMixin:
         fetch_btn = ttk.Button(val_frame, text="↻ Load options from Jira")
         fetch_btn.pack_forget()
 
-        _field_to_options_key = {
-            "Priority": "Priority", "Labels": "Labels", "Components": "Components",
-            "Status": "Status", "Assignee": None,
-        }
-
         def _load_options_for_field(field_display_name):
             """Fetch Jira options for the given field and populate the input."""
             s = self.get_jira_session()
@@ -218,6 +215,10 @@ class MassEditMixin:
                     vals = self._fetch_statuses(s, project_key)
                 elif field_display_name == "Assignee":
                     vals = self._fetch_assignable_users(s, project_key)
+                elif field_display_name == "Sprint":
+                    vals = self._fetch_sprints(s, project_key)
+                elif field_display_name == "Fix Version":
+                    vals = self._fetch_versions(s, project_key)
                 else:
                     vals = []
             except Exception as e:
@@ -257,7 +258,7 @@ class MassEditMixin:
                     val_entry.pack(fill="x")
                     _active_input[0] = val_entry
                     hint_lbl.config(text="Separate values with semicolons (;).  Click ↻ to load options from Jira.")
-            elif name in ("Priority", "Status", "Assignee"):
+            elif name in ("Priority", "Status", "Assignee", "Sprint", "Fix Version"):
                 _is_multiselect_mode[0] = False
                 mode_frame.pack_forget()
                 mode_var.set("replace")
@@ -285,6 +286,10 @@ class MassEditMixin:
                     hint_lbl.config(text="Search and select a status." if cached else "Enter status name, or click ↻ to load from Jira.")
                 elif name == "Assignee":
                     hint_lbl.config(text="Search and select an assignee." if cached else "Enter display name or email, or click ↻ to load from Jira.")
+                elif name == "Sprint":
+                    hint_lbl.config(text="Search and select a sprint." if cached else "Enter sprint name, or click ↻ to load from Jira.")
+                elif name == "Fix Version":
+                    hint_lbl.config(text="Search and select a fix version." if cached else "Enter version name, or click ↻ to load from Jira.")
             else:
                 _is_multiselect_mode[0] = False
                 mode_frame.pack_forget()
@@ -397,6 +402,41 @@ class MassEditMixin:
                         elif mode == "remove":
                             remove_set = set(v.lower() for v in new_items)
                             payload_fields["components"] = [{"name": n} for n in existing if n.lower() not in remove_set]
+                    elif jira_field == "customfield_10020":
+                        # Sprint — Jira Cloud expects the sprint id, find by name
+                        sprint_id = None
+                        try:
+                            boards_url = f"{session._jira_base}/rest/agile/1.0/board"
+                            pk = (fresh_fields.get("project") or {}).get("key", "SUNDANCE")
+                            br = perform_jira_request(session, "GET", boards_url,
+                                                      params={"projectKeyOrId": pk, "maxResults": 50}, timeout=20)
+                            for board in (br.json() or {}).get("values", []):
+                                sr = perform_jira_request(session, "GET",
+                                    f"{session._jira_base}/rest/agile/1.0/board/{board['id']}/sprint",
+                                    params={"maxResults": 100, "state": "active,future"}, timeout=20)
+                                for sp in (sr.json() or {}).get("values", []):
+                                    if (sp.get("name") or "").strip().lower() == new_val.lower():
+                                        sprint_id = sp["id"]
+                                        break
+                                if sprint_id:
+                                    break
+                        except Exception:
+                            pass
+                        if not sprint_id:
+                            failures.append((issue_key, f"Sprint '{new_val}' not found"))
+                            continue
+                        payload_fields["customfield_10020"] = {"id": sprint_id}
+                    elif jira_field == "fixVersions":
+                        new_items = [v.strip() for v in new_val.replace(",", ";").split(";") if v.strip()]
+                        existing = [v.get("name", "") for v in (fresh_fields.get("fixVersions") or [])]
+                        if mode == "replace":
+                            payload_fields["fixVersions"] = [{"name": n} for n in new_items]
+                        elif mode == "add":
+                            merged = list(dict.fromkeys(existing + new_items))
+                            payload_fields["fixVersions"] = [{"name": n} for n in merged]
+                        elif mode == "remove":
+                            remove_set = set(v.lower() for v in new_items)
+                            payload_fields["fixVersions"] = [{"name": n} for n in existing if n.lower() not in remove_set]
                     elif jira_field == "status":
                         # Status changes use transitions API
                         trans_url = f"{session._jira_base}/rest/api/3/issue/{issue_key}/transitions"
@@ -455,6 +495,13 @@ class MassEditMixin:
                             it["Labels"] = "; ".join(fresh_fields.get("labels") or [])
                             comps = fresh_fields.get("components") or []
                             it["Components"] = "; ".join(c.get("name", "") for c in comps)
+                            sprints = fresh_fields.get("customfield_10020") or []
+                            if sprints:
+                                active = [s for s in sprints if isinstance(s, dict) and s.get("state") == "active"]
+                                pick = active[0] if active else sprints[-1]
+                                it["Sprint"] = pick.get("name", "") if isinstance(pick, dict) else ""
+                            fv = fresh_fields.get("fixVersions") or []
+                            it["Fix Version"] = "; ".join(v.get("name", "") for v in fv if isinstance(v, dict))
                             it["Updated"] = fresh_fields.get("updated", it.get("Updated", ""))
                             break
                 except Exception:

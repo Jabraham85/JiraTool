@@ -99,10 +99,21 @@ class CredentialsMixin:
                 except Exception:
                     pass
 
+            # Fetch Sprint and Fix Version (project-scoped)
+            for name, fn in [
+                ("Sprint", lambda: self._fetch_sprints(s, primary_project)),
+                ("Fix Version", lambda: self._fetch_versions(s, primary_project)),
+            ]:
+                try:
+                    vals = fn()
+                    if vals:
+                        fetched[name] = vals
+                except Exception:
+                    pass
+
             if projects:
                 all_components = set()
                 all_reporters = set()
-                # Always include the primary project, then add a few more
                 pks_to_scan = [primary_project] if primary_project in projects else []
                 for pk in projects:
                     if pk not in pks_to_scan and len(pks_to_scan) < 5:

@@ -826,6 +826,10 @@ class TabManagementMixin:
                 values = self._fetch_labels(s)
             elif field_name == "Reporter":
                 values = self._fetch_assignable_users(s, project_key)
+            elif field_name == "Sprint":
+                values = self._fetch_sprints(s, project_key)
+            elif field_name == "Fix Version":
+                values = self._fetch_versions(s, project_key)
             else:
                 messagebox.showinfo("Info", f"No fetch implemented for {field_name}.")
                 return

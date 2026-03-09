@@ -558,63 +558,59 @@ class AvalancheApp(
         self.destroy()
 
     def _ensure_field_options(self, session):
-        """Check for missing Jira field options and fetch them in the background."""
-        opts = self.meta.get("options", {})
-        _REQUIRED = ["Project key", "Priority", "Labels", "Issue Type",
-                      "Status", "Components", "Assignee", "Reporter"]
-        missing = [f for f in _REQUIRED if not opts.get(f)]
-        if not missing:
-            return
-        self._log_startup(f"Fetching missing field options: {', '.join(missing)}...", "step")
+        """Refresh ALL Jira field options on every startup so dropdowns
+        always reflect the latest values in Jira."""
+        self._log_startup("Syncing Jira field options...", "step")
 
         def worker():
             fetched = {}
             pk = "SUNDANCE"
             try:
-                if "Project key" in missing:
-                    vals = self._fetch_projects(session)
-                    if vals:
-                        fetched["Project key"] = vals
-                        if pk not in vals and vals:
-                            pk = vals[0]
-                if "Priority" in missing:
-                    vals = self._fetch_priorities(session)
-                    if vals:
-                        fetched["Priority"] = vals
-                if "Labels" in missing:
-                    vals = self._fetch_labels(session)
-                    if vals:
-                        fetched["Labels"] = vals
-                if "Issue Type" in missing:
-                    vals = self._fetch_issue_types(session, pk)
-                    if vals:
-                        fetched["Issue Type"] = vals
-                if "Status" in missing:
-                    vals = self._fetch_statuses(session, pk)
-                    if vals:
-                        fetched["Status"] = vals
-                if "Components" in missing:
-                    vals = self._fetch_components(session, pk)
-                    if vals:
-                        fetched["Components"] = vals
-                if "Assignee" in missing or "Reporter" in missing:
-                    vals = self._fetch_assignable_users(session, pk)
-                    if vals:
-                        if "Assignee" in missing:
-                            fetched["Assignee"] = vals
-                        if "Reporter" in missing:
-                            fetched["Reporter"] = vals
+                vals = self._fetch_projects(session)
+                if vals:
+                    fetched["Project key"] = vals
+                    if pk not in vals and vals:
+                        pk = vals[0]
+
+                for name, fn in [
+                    ("Priority",    lambda: self._fetch_priorities(session)),
+                    ("Labels",      lambda: self._fetch_labels(session)),
+                    ("Issue Type",  lambda: self._fetch_issue_types(session, pk)),
+                    ("Status",      lambda: self._fetch_statuses(session, pk)),
+                    ("Components",  lambda: self._fetch_components(session, pk)),
+                    ("Sprint",      lambda: self._fetch_sprints(session, pk)),
+                    ("Fix Version", lambda: self._fetch_versions(session, pk)),
+                ]:
+                    try:
+                        v = fn()
+                        if v:
+                            fetched[name] = v
+                    except Exception:
+                        debug_log(f"_ensure_field_options [{name}]: "
+                                  + traceback.format_exc())
+
+                # Users (Assignee / Reporter)
+                try:
+                    users = self._fetch_assignable_users(session, pk)
+                    if users:
+                        fetched["Assignee"] = users
+                        fetched["Reporter"] = users
+                except Exception:
+                    debug_log("_ensure_field_options [users]: "
+                              + traceback.format_exc())
             except Exception:
                 debug_log("_ensure_field_options failed: " + traceback.format_exc())
+
             def apply():
+                opts = self.meta.setdefault("options", {})
                 for name, vals in fetched.items():
-                    self.meta.setdefault("options", {})[name] = vals
+                    existing = set(opts.get(name) or [])
+                    merged = sorted(existing | set(vals), key=lambda x: x.lower())
+                    opts[name] = merged
                 if fetched:
                     save_storage(self.templates, self.meta)
                     self._log_startup(
-                        f"Fetched: {', '.join(fetched.keys())}.", "step")
-                else:
-                    self._log_startup("No new options fetched.", "done")
+                        f"Updated: {', '.join(fetched.keys())}.", "step")
             self.after(0, apply)
         import threading
         threading.Thread(target=worker, daemon=True).start()

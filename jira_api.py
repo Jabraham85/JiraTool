@@ -355,6 +355,54 @@ class JiraAPIMixin:
         merged = sorted(existing | new_vals, key=lambda x: x.lower())
         return merged
 
+    def _fetch_sprints(self, session, project_key=None):
+        """Fetch sprint names for a project's boards from Jira Agile API."""
+        if not project_key:
+            project_key = "SUNDANCE"
+        names = set()
+        try:
+            board_url = f"{session._jira_base}/rest/agile/1.0/board"
+            resp = perform_jira_request(session, "GET", board_url,
+                                        params={"projectKeyOrId": project_key, "maxResults": 50},
+                                        timeout=20)
+            boards = []
+            if resp.status_code == 200:
+                boards = (resp.json() or {}).get("values", [])
+            for board in boards:
+                bid = board.get("id")
+                if not bid:
+                    continue
+                sprint_url = f"{session._jira_base}/rest/agile/1.0/board/{bid}/sprint"
+                sr = perform_jira_request(session, "GET", sprint_url,
+                                          params={"maxResults": 100, "state": "active,future"},
+                                          timeout=20)
+                if sr.status_code != 200:
+                    continue
+                for sp in (sr.json() or {}).get("values", []):
+                    n = (sp.get("name") or "").strip()
+                    if n:
+                        names.add(n)
+        except Exception:
+            debug_log("Fetch sprints failed: " + traceback.format_exc())
+        return sorted(names, key=lambda x: x.lower())
+
+    def _fetch_versions(self, session, project_key=None):
+        """Fetch fix version / milestone names for a project."""
+        if not project_key:
+            project_key = "SUNDANCE"
+        names = []
+        try:
+            url = f"{session._jira_base}/rest/api/3/project/{project_key}/versions"
+            resp = perform_jira_request(session, "GET", url, timeout=20)
+            if resp.status_code == 200:
+                for v in (resp.json() if isinstance(resp.json(), list) else []):
+                    n = (v.get("name") or "").strip()
+                    if n:
+                        names.append(n)
+        except Exception:
+            debug_log("Fetch versions failed: " + traceback.format_exc())
+        return sorted(names, key=lambda x: x.lower())
+
     def _fetch_jira_fields(self, session):
         """Fetch all Jira fields (id, name) for changelog/ignored-fields. Returns [(id, name), ...]."""
         try:
