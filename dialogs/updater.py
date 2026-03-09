@@ -293,21 +293,31 @@ class UpdaterMixin:
                 pass
 
             def _auto_restart():
+                # Launch the new EXE and hard-exit immediately.
+                # Do NOT call self.destroy() — it triggers Tkinter
+                # cleanup callbacks that can corrupt templates.json,
+                # causing the new process to start with broken state.
+                import subprocess, time
+
+                # Hide windows so the user sees them disappear instantly
                 try:
-                    dlg.destroy()
+                    dlg.withdraw()
+                except Exception:
+                    pass
+                try:
+                    self.withdraw()
                 except Exception:
                     pass
 
-                # Fully shut down the old app before launching the new one
-                try:
-                    self.destroy()
-                except Exception:
-                    pass
+                # Small pause to ensure the file rename is fully flushed
+                time.sleep(0.3)
 
-                import subprocess
                 try:
-                    subprocess.Popen([target_path], close_fds=True,
-                                     creationflags=subprocess.DETACHED_PROCESS)
+                    subprocess.Popen(
+                        [target_path],
+                        close_fds=True,
+                        creationflags=subprocess.DETACHED_PROCESS,
+                    )
                 except Exception:
                     try:
                         os.startfile(target_path)
