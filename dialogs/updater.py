@@ -215,7 +215,15 @@ class UpdaterMixin:
 
     def _download_and_replace(self, download_url, remote_version,
                               prog_var, dlg):
-        """Download the update file and replace the current executable."""
+        """Download the update file, swap, and relaunch via batch helper.
+
+        This entire method runs on a **background thread**.  The restart
+        is done here — never delegated to the Tkinter main thread — so
+        that ``self.destroy()`` / widget-cleanup callbacks can never
+        interfere with the launch of the new process.
+        """
+        import subprocess as _sp
+
         current_exe = sys.executable
         is_frozen = getattr(sys, "frozen", False)
 
@@ -236,7 +244,6 @@ class UpdaterMixin:
         new_path = os.path.join(target_dir, f"{base}.new{ext}")
         old_path = os.path.join(target_dir, f"{base}.old{ext}")
 
-        # Clean up leftover files from a previous update
         for leftover in (new_path, old_path):
             try:
                 if os.path.exists(leftover):
@@ -263,89 +270,12 @@ class UpdaterMixin:
 
         self.after(0, lambda: prog_var.set("Download complete. Applying..."))
 
-        if is_frozen:
-            # Swap: current -> .old, new -> current
-            try:
-                if os.path.exists(old_path):
-                    os.remove(old_path)
-                os.rename(target_path, old_path)
-                os.rename(new_path, target_path)
-            except Exception:
-                debug_log("EXE swap failed: " + traceback.format_exc())
-                # Try to restore
-                try:
-                    if not os.path.exists(target_path) and os.path.exists(old_path):
-                        os.rename(old_path, target_path)
-                except Exception:
-                    pass
-                self.after(0, lambda: messagebox.showerror(
-                    "Update Failed",
-                    "Could not replace the executable. "
-                    "The downloaded file is saved as:\n"
-                    f"{new_path}\n\n"
-                    "You can manually replace the EXE."))
-                return
-
+        if not is_frozen:
             self.meta["skipped_update_version"] = ""
             try:
                 save_storage(self.templates, self.meta)
             except Exception:
                 pass
-
-            def _auto_restart():
-                # Hide windows instantly, then use a helper batch file
-                # to relaunch the new EXE.  A batch file is the most
-                # reliable relaunch method on Windows — it runs fully
-                # independently, never gets blocked by SmartScreen,
-                # and can wait for the old process to exit first.
-                try:
-                    dlg.withdraw()
-                except Exception:
-                    pass
-                try:
-                    self.withdraw()
-                except Exception:
-                    pass
-
-                bat_path = os.path.join(target_dir, "_restart.bat")
-                try:
-                    with open(bat_path, "w") as bf:
-                        bf.write("@echo off\r\n")
-                        bf.write("timeout /t 2 /nobreak >nul\r\n")
-                        bf.write(f'start "" "{target_path}"\r\n')
-                        bf.write(f'del "%~f0"\r\n')
-                    import subprocess
-                    subprocess.Popen(
-                        ["cmd.exe", "/c", bat_path],
-                        creationflags=subprocess.DETACHED_PROCESS
-                                      | subprocess.CREATE_NEW_PROCESS_GROUP
-                                      | subprocess.CREATE_NO_WINDOW,
-                        stdin=subprocess.DEVNULL,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                except Exception:
-                    # Fallback: try direct launch methods
-                    debug_log("Batch restart failed: " + traceback.format_exc())
-                    try:
-                        os.startfile(target_path)
-                    except Exception:
-                        try:
-                            subprocess.Popen([target_path],
-                                creationflags=subprocess.DETACHED_PROCESS)
-                        except Exception:
-                            pass
-
-                os._exit(0)
-            self.after(0, _auto_restart)
-        else:
-            # Running from source — save the downloaded file and inform user
-            self.meta["skipped_update_version"] = ""
-            try:
-                save_storage(self.templates, self.meta)
-            except Exception:
-                pass
-
             def _notify():
                 try:
                     dlg.destroy()
@@ -358,3 +288,87 @@ class UpdaterMixin:
                     "Replace the current files manually, or pull the "
                     "latest changes from GitHub.")
             self.after(0, _notify)
+            return
+
+        # ── Frozen EXE: swap files, write restart script, launch, exit ──
+
+        try:
+            if os.path.exists(old_path):
+                os.remove(old_path)
+            os.rename(target_path, old_path)
+            os.rename(new_path, target_path)
+        except Exception:
+            debug_log("EXE swap failed: " + traceback.format_exc())
+            try:
+                if not os.path.exists(target_path) and os.path.exists(old_path):
+                    os.rename(old_path, target_path)
+            except Exception:
+                pass
+            self.after(0, lambda: messagebox.showerror(
+                "Update Failed",
+                "Could not replace the executable. "
+                "The downloaded file is saved as:\n"
+                f"{new_path}\n\n"
+                "You can manually replace the EXE."))
+            return
+
+        self.meta["skipped_update_version"] = ""
+        try:
+            save_storage(self.templates, self.meta)
+        except Exception:
+            pass
+
+        # Write a helper batch file that waits for this process to exit,
+        # then launches the new EXE and deletes itself.  This runs as a
+        # completely independent process — no parent/child relationship.
+        bat_path = os.path.join(target_dir, "_restart.bat")
+        pid = os.getpid()
+        try:
+            with open(bat_path, "w") as bf:
+                bf.write("@echo off\r\n")
+                # Wait for the old process (by PID) to exit, up to 10s
+                bf.write(f":wait\r\n")
+                bf.write(f'tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul\r\n')
+                bf.write(f"if not errorlevel 1 (\r\n")
+                bf.write(f"    timeout /t 1 /nobreak >nul\r\n")
+                bf.write(f"    goto wait\r\n")
+                bf.write(f")\r\n")
+                bf.write(f'start "" "{target_path}"\r\n')
+                bf.write(f'del "%~f0"\r\n')
+        except Exception:
+            debug_log("Failed to write restart batch: "
+                      + traceback.format_exc())
+
+        # Launch the batch file RIGHT NOW on this background thread,
+        # before any Tkinter main-thread interaction can corrupt state.
+        launched = False
+        try:
+            _sp.Popen(
+                ["cmd.exe", "/c", bat_path],
+                creationflags=(_sp.DETACHED_PROCESS
+                               | _sp.CREATE_NEW_PROCESS_GROUP
+                               | _sp.CREATE_NO_WINDOW),
+                stdin=_sp.DEVNULL,
+                stdout=_sp.DEVNULL,
+                stderr=_sp.DEVNULL,
+            )
+            launched = True
+        except Exception:
+            debug_log("Batch Popen failed: " + traceback.format_exc())
+
+        if not launched:
+            try:
+                os.startfile(bat_path)
+                launched = True
+            except Exception:
+                debug_log("Batch startfile failed: " + traceback.format_exc())
+
+        if not launched:
+            try:
+                os.startfile(target_path)
+            except Exception:
+                debug_log("Direct startfile failed: " + traceback.format_exc())
+
+        # Hard-exit immediately.  The batch file polls our PID and will
+        # launch the new EXE only after we've fully exited.
+        os._exit(0)
