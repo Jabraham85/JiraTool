@@ -223,6 +223,37 @@ class UploadMixin:
             parent_key = ticket_for_upload.get("Parent key") or parent_issue_key_override or None
             epic_key   = (ticket_for_upload.get("Epic Link") or "").strip()
             epic_mode  = (ticket_for_upload.get("_epic_mode") or "nextgen").strip()
+
+            # Fix Version / Milestone
+            fix_ver_raw = (ticket_for_upload.get("Fix Version") or "").strip()
+            fix_versions = [{"name": v.strip()} for v in fix_ver_raw.replace(",", ";").split(";") if v.strip()] if fix_ver_raw else []
+
+            # Time estimates (parse human-readable back to seconds)
+            def _parse_estimate(val):
+                if not val or not str(val).strip():
+                    return None
+                val = str(val).strip().lower()
+                try:
+                    return int(val)
+                except ValueError:
+                    pass
+                secs = 0
+                import re as _re
+                for amt, unit in _re.findall(r'(\d+)\s*([dhms])', val):
+                    amt = int(amt)
+                    if unit == 'd':
+                        secs += amt * 8 * 3600
+                    elif unit == 'h':
+                        secs += amt * 3600
+                    elif unit == 'm':
+                        secs += amt * 60
+                    elif unit == 's':
+                        secs += amt
+                return secs if secs > 0 else None
+
+            orig_est = _parse_estimate(ticket_for_upload.get("Original Estimate"))
+            rem_est  = _parse_estimate(ticket_for_upload.get("Remaining Estimate"))
+
             issue_key = str(ticket.get("Issue key") or ticket.get("Issue id") or "").strip()
             is_update = bool(issue_key and not issue_key.startswith("LOCAL-"))
             existing = None
@@ -291,6 +322,12 @@ class UploadMixin:
                 elif parent_key:
                     # True sub-task parent (non-epic)
                     update_fields["parent"] = {"key": parent_key}
+                if fix_versions:
+                    update_fields["fixVersions"] = fix_versions
+                if orig_est is not None:
+                    update_fields["timeoriginalestimate"] = orig_est
+                if rem_est is not None:
+                    update_fields["timeestimate"] = rem_est
                 update_url = f"{s._jira_base}/rest/api/3/issue/{issue_key}"
                 payload = {"fields": update_fields}
                 try:
@@ -376,6 +413,12 @@ class UploadMixin:
                         fields["parent"] = {"key": epic_key}
                 elif parent_key:
                     fields["parent"] = {"key": parent_key}
+                if fix_versions:
+                    fields["fixVersions"] = fix_versions
+                if orig_est is not None:
+                    fields["timeoriginalestimate"] = orig_est
+                if rem_est is not None:
+                    fields["timeestimate"] = rem_est
                 create_url = f"{s._jira_base}/rest/api/3/issue"
                 payload = {"fields": fields}
                 try:

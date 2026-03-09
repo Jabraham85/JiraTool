@@ -1,5 +1,5 @@
 {
-    "version": "1.0.7",
-    "download_url": "https://github.com/Jabraham85/JiraTool/releases/download/v1.0.7/Avalanche.exe",
-    "changelog": "Fix combobox dropdown stealing focus while typing. Dropdown now only filters silently."
+    "version": "1.1.0",
+    "download_url": "https://github.com/Jabraham85/JiraTool/releases/download/v1.1.0/Avalanche.exe",
+    "changelog": "Add Sprint, Fix Version (Milestone), Original Estimate, and Remaining Estimate fields. Time estimates display as human-readable (e.g. 2d 4h) and can be edited in the same format."
 }

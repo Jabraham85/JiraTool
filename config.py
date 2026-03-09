@@ -2,7 +2,7 @@
 Avalanche Jira Template Creator — shared constants and configuration.
 """
 
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.1.0"
 GITHUB_VERSION_URL = "https://raw.githubusercontent.com/Jabraham85/JiraTool/main/version.json"
 
 TEMPLATES_FILE = "templates.json"
@@ -16,6 +16,9 @@ FETCH_FIELDS = [
     "parent", "customfield_10014", "customfield_10011",
     # Formal issue links (blocks / relates-to / etc.)
     "issuelinks",
+    # Sprint, Fix Version (Milestone), Time estimates
+    "customfield_10020", "fixVersions",
+    "timeoriginalestimate", "timeestimate",
 ]
 
 HEADERS = [
@@ -30,6 +33,8 @@ HEADERS = [
     # Sub-task parent
     "Parent", "Parent key", "Parent summary",
     "Status Category", "Variables",
+    # Sprint, Milestone / Fix Version, Time estimates
+    "Sprint", "Fix Version", "Original Estimate", "Remaining Estimate",
 ]
 
 FETCHABLE_OPTION_FIELDS = {

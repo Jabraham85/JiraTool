@@ -458,6 +458,50 @@ class ListViewMixin:
         result["Comment"]    = self._parse_jira_comments(fields.get("comment"))
         self._map_epic_and_link_fields(fields, result)
 
+        # Sprint (customfield_10020 — array of sprint objects)
+        sprints = fields.get("customfield_10020") or []
+        if sprints and isinstance(sprints, list):
+            active = [s for s in sprints if isinstance(s, dict) and s.get("state") == "active"]
+            pick = active[0] if active else sprints[-1]
+            if isinstance(pick, dict):
+                result["Sprint"] = pick.get("name", "")
+            else:
+                result["Sprint"] = str(pick) if pick else ""
+        else:
+            result.setdefault("Sprint", "")
+
+        # Fix Version / Milestone (fixVersions — array of version objects)
+        fix_vers = fields.get("fixVersions") or []
+        result["Fix Version"] = "; ".join(
+            v.get("name", "") for v in fix_vers if isinstance(v, dict)
+        ) if fix_vers else ""
+
+        # Time estimates (stored as seconds in Jira, displayed as human-readable)
+        def _fmt_seconds(s):
+            if not s:
+                return ""
+            s = int(s)
+            if s < 60:
+                return f"{s}s"
+            m = s // 60
+            if m < 60:
+                return f"{m}m"
+            h, m = divmod(m, 60)
+            if h < 8:
+                return f"{h}h {m}m" if m else f"{h}h"
+            d, h = divmod(h, 8)
+            parts = []
+            if d:
+                parts.append(f"{d}d")
+            if h:
+                parts.append(f"{h}h")
+            if m:
+                parts.append(f"{m}m")
+            return " ".join(parts) or ""
+
+        result["Original Estimate"]  = _fmt_seconds(fields.get("timeoriginalestimate"))
+        result["Remaining Estimate"] = _fmt_seconds(fields.get("timeestimate"))
+
         return result
 
     def _auto_refresh_from_jira(self, key, initial_data, tabform=None):
