@@ -910,20 +910,24 @@ class FetchMixin:
                     self.list_items.extend(new_issues)
                     self.list_items = _dedup_list_items(self.list_items)
                     if folder_name:
-                        folder_keys = set()
+                        tf = self.meta.setdefault("ticket_folders", {})
                         for ni in new_issues:
                             k = ni.get("Issue key") or ni.get("Issue id") or ""
                             if k:
-                                folder_keys.add(k)
-                        if folder_keys:
-                            tf = self.meta.get("ticket_folders") or {}
-                            for k in folder_keys:
                                 tf[k] = folder_name
-                            self.meta["ticket_folders"] = tf
-                            folders_list = list(self.meta.get("folders") or [])
-                            if folder_name not in folders_list:
-                                folders_list.append(folder_name)
-                                self.meta["folders"] = folders_list
+                        # Also move existing matching tickets into the folder
+                        self._assign_folder_to_matching(
+                            folder_name, tf,
+                            label_filter=label_filter,
+                            component_filter=component_filter,
+                            type_filter=type_filter,
+                            status_filter=status_filter,
+                            priority_filter=priority_filter,
+                        )
+                        folders_list = list(self.meta.get("folders") or [])
+                        if folder_name not in folders_list:
+                            folders_list.append(folder_name)
+                            self.meta["folders"] = folders_list
                     self.meta["fetched_issues"] = list(self.list_items)
                     save_storage(self.templates, self.meta)
 
@@ -1118,7 +1122,11 @@ class FetchMixin:
                 results["ok"] = True
             except Exception:
                 results["error"] = traceback.format_exc()
-            self.after(0, lambda fn=folder_name: self._on_fetch_complete(results, progress, logbox, folder_name=fn))
+            self.after(0, lambda fn=folder_name: self._on_fetch_complete(
+                results, progress, logbox, folder_name=fn,
+                label_filter=label_filter, component_filter=component_filter,
+                type_filter=type_filter, status_filter=status_filter,
+                priority_filter=priority_filter))
 
         thr = threading.Thread(target=worker, daemon=True)
         thr.start()
@@ -1194,7 +1202,10 @@ class FetchMixin:
         self._populate_listview()
         messagebox.showinfo("Refreshed", f"Updated {issue_dict.get('Issue key', '')} from Jira.")
 
-    def _on_fetch_complete(self, results, progress_win, logbox, folder_name=""):
+    def _on_fetch_complete(self, results, progress_win, logbox, folder_name="",
+                           label_filter=None, component_filter=None,
+                           type_filter=None, status_filter=None,
+                           priority_filter=None):
         try:
             progress_win.grab_release()
         except Exception:
@@ -1218,16 +1229,33 @@ class FetchMixin:
                 self.list_items.append(issue_dict)
                 new_count += 1
         self.list_items = _dedup_list_items(self.list_items)
-        # Auto-assign all fetched tickets (new + refreshed) to folder if specified
+
         fn = (folder_name or "").strip()
+        moved_existing = 0
         if fn:
             if fn not in self.meta.setdefault("folders", []):
                 self.meta["folders"].append(fn)
             tf = self.meta.setdefault("ticket_folders", {})
+
+            # Assign folder to newly fetched tickets
             for issue_dict in results.get("issues", []):
-                tk_key = str(issue_dict.get("Issue id") or issue_dict.get("Issue key") or "").strip()
+                tk_key = str(issue_dict.get("Issue key") or issue_dict.get("Issue id") or "").strip()
                 if tk_key:
                     tf[tk_key] = fn
+
+            # Also assign folder to ALL existing tickets that match the
+            # same filter criteria, so previously-fetched tickets that
+            # belong to the same logical group are included.
+            moved_existing = self._assign_folder_to_matching(
+                fn, tf,
+                label_filter=label_filter,
+                component_filter=component_filter,
+                type_filter=type_filter,
+                status_filter=status_filter,
+                priority_filter=priority_filter,
+            )
+            self._refresh_folder_combo()
+
         self.meta["fetched_issues"] = list(self.list_items)
         try:
             save_storage(self.templates, self.meta)
@@ -1239,8 +1267,13 @@ class FetchMixin:
         all_keys = [it.get("Issue key") or it.get("Issue id") for it in results.get("issues", []) if (it.get("Issue key") or it.get("Issue id"))]
         self.meta["welcome_updates"] = {"new": new_count, "refreshed": len(results.get("issues", [])) - new_count, "new_ticket_keys": all_keys}
         self._update_welcome_text()
-        folder_msg = f"\nSaved to folder: '{fn}'" if fn else ""
-        messagebox.showinfo("Fetched", f"Added/updated {len(results.get('issues',[]))} issues (new: {new_count}).{folder_msg}")
+        if fn:
+            extra = f"\nSaved to folder: '{fn}'"
+            if moved_existing:
+                extra += f" ({moved_existing} existing ticket(s) also moved)"
+        else:
+            extra = ""
+        messagebox.showinfo("Fetched", f"Added/updated {len(results.get('issues',[]))} issues (new: {new_count}).{extra}")
         cb = getattr(self, "_post_fetch_callback", None)
         if cb:
             self._post_fetch_callback = None
@@ -1248,6 +1281,62 @@ class FetchMixin:
                 cb()
             except Exception:
                 pass
+
+    def _assign_folder_to_matching(self, folder_name, ticket_folders,
+                                    label_filter=None, component_filter=None,
+                                    type_filter=None, status_filter=None,
+                                    priority_filter=None):
+        """Scan all existing list_items and assign the folder to any ticket
+        that matches the given filter criteria.  Returns the count of
+        existing tickets that were moved."""
+        label_set = set(x.strip().lower() for x in (label_filter or []) if x.strip())
+        comp_set = set(x.strip().lower() for x in (component_filter or []) if x.strip())
+        type_set = set(x.strip().lower() for x in (type_filter or []) if x.strip())
+        status_set = set(x.strip().lower() for x in (status_filter or []) if x.strip())
+        priority_set = set(x.strip().lower() for x in (priority_filter or []) if x.strip())
+
+        # If no filters were active, don't mass-move everything
+        if not any([label_set, comp_set, type_set, status_set, priority_set]):
+            return 0
+
+        moved = 0
+        for item in self.list_items:
+            tk_key = str(item.get("Issue key") or item.get("Issue id") or "").strip()
+            if not tk_key:
+                continue
+            if ticket_folders.get(tk_key) == folder_name:
+                continue
+
+            # Check each active filter against the ticket's values
+            if label_set:
+                item_labels = set(
+                    p.strip().lower()
+                    for p in (item.get("Labels") or "").replace(",", ";").split(";")
+                    if p.strip()
+                )
+                if not (label_set & item_labels):
+                    continue
+            if comp_set:
+                item_comps = set(
+                    p.strip().lower()
+                    for p in (item.get("Components") or "").replace(",", ";").split(";")
+                    if p.strip()
+                )
+                if not (comp_set & item_comps):
+                    continue
+            if type_set:
+                if (item.get("Issue Type") or "").strip().lower() not in type_set:
+                    continue
+            if status_set:
+                if (item.get("Status") or "").strip().lower() not in status_set:
+                    continue
+            if priority_set:
+                if (item.get("Priority") or "").strip().lower() not in priority_set:
+                    continue
+
+            ticket_folders[tk_key] = folder_name
+            moved += 1
+        return moved
 
     def refresh_fetched_tickets(self):
         if not self.list_items:

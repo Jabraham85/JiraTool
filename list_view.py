@@ -157,13 +157,19 @@ class ListViewMixin:
 
     # ---------------- Helpers ----------------
     def _get_item_ticket_key(self, item):
-        """Stable key for folder lookup (Issue id or Issue key)."""
-        return item.get("Issue id") or item.get("Issue key") or ""
+        """Stable key for folder lookup — prefer Issue key (e.g. PROJ-123)."""
+        return item.get("Issue key") or item.get("Issue id") or ""
 
     def _get_item_folder(self, item):
-        """Folder name for this ticket."""
-        key = self._get_item_ticket_key(item)
-        return self.meta.get("ticket_folders", {}).get(key, "")
+        """Folder name for this ticket (checks both Issue key and Issue id)."""
+        tf = self.meta.get("ticket_folders", {})
+        k = item.get("Issue key") or ""
+        if k and k in tf:
+            return tf[k]
+        kid = item.get("Issue id") or ""
+        if kid and kid in tf:
+            return tf[kid]
+        return ""
 
     def _refresh_folder_combo(self):
         """Refresh folder dropdown with current folders."""
