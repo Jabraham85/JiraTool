@@ -2,7 +2,7 @@
 Avalanche Jira Template Creator — shared constants and configuration.
 """
 
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.2.2"
 GITHUB_VERSION_URL = "https://raw.githubusercontent.com/Jabraham85/JiraTool/main/version.json"
 
 TEMPLATES_FILE = "templates.json"

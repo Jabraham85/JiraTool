@@ -1,5 +1,5 @@
 {
-    "version": "1.2.1",
-    "download_url": "https://github.com/Jabraham85/JiraTool/releases/download/v1.2.1/Avalanche.exe",
-    "changelog": "Fix update restart launching a buggy instance.\nThe old process no longer corrupts saved state during shutdown.\nNew process waits for the old one to fully exit before starting."
+    "version": "1.2.2",
+    "download_url": "https://github.com/Jabraham85/JiraTool/releases/download/v1.2.2/Avalanche.exe",
+    "changelog": "Fix app not launching after update.\nUse os.startfile for more reliable process launch on Windows.\nSimplify post-update wait to a fixed 1.5s delay."
 }

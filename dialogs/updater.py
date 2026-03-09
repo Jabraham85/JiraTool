@@ -293,13 +293,10 @@ class UpdaterMixin:
                 pass
 
             def _auto_restart():
-                # Launch the new EXE and hard-exit immediately.
-                # Do NOT call self.destroy() — it triggers Tkinter
-                # cleanup callbacks that can corrupt templates.json,
-                # causing the new process to start with broken state.
-                import subprocess, time
-
-                # Hide windows so the user sees them disappear instantly
+                # Hide windows instantly so the user sees them vanish,
+                # then hard-exit.  Do NOT call self.destroy() — it
+                # triggers Tkinter cleanup callbacks that corrupt
+                # templates.json, breaking the newly launched process.
                 try:
                     dlg.withdraw()
                 except Exception:
@@ -309,18 +306,23 @@ class UpdaterMixin:
                 except Exception:
                     pass
 
-                # Small pause to ensure the file rename is fully flushed
-                time.sleep(0.3)
-
+                # os.startfile is the most reliable way to launch a
+                # fully independent process on Windows (equivalent to
+                # double-clicking the EXE).  subprocess.Popen with
+                # DETACHED_PROCESS can fail silently in some configs.
                 try:
-                    subprocess.Popen(
-                        [target_path],
-                        close_fds=True,
-                        creationflags=subprocess.DETACHED_PROCESS,
-                    )
+                    os.startfile(target_path)
                 except Exception:
+                    import subprocess
                     try:
-                        os.startfile(target_path)
+                        subprocess.Popen(
+                            [target_path],
+                            creationflags=subprocess.DETACHED_PROCESS
+                                          | subprocess.CREATE_NEW_PROCESS_GROUP,
+                            stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
                     except Exception:
                         pass
 
