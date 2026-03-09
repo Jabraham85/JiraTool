@@ -293,10 +293,11 @@ class UpdaterMixin:
                 pass
 
             def _auto_restart():
-                # Hide windows instantly so the user sees them vanish,
-                # then hard-exit.  Do NOT call self.destroy() — it
-                # triggers Tkinter cleanup callbacks that corrupt
-                # templates.json, breaking the newly launched process.
+                # Hide windows instantly, then use a helper batch file
+                # to relaunch the new EXE.  A batch file is the most
+                # reliable relaunch method on Windows — it runs fully
+                # independently, never gets blocked by SmartScreen,
+                # and can wait for the old process to exit first.
                 try:
                     dlg.withdraw()
                 except Exception:
@@ -306,25 +307,34 @@ class UpdaterMixin:
                 except Exception:
                     pass
 
-                # os.startfile is the most reliable way to launch a
-                # fully independent process on Windows (equivalent to
-                # double-clicking the EXE).  subprocess.Popen with
-                # DETACHED_PROCESS can fail silently in some configs.
+                bat_path = os.path.join(target_dir, "_restart.bat")
                 try:
-                    os.startfile(target_path)
-                except Exception:
+                    with open(bat_path, "w") as bf:
+                        bf.write("@echo off\r\n")
+                        bf.write("timeout /t 2 /nobreak >nul\r\n")
+                        bf.write(f'start "" "{target_path}"\r\n')
+                        bf.write(f'del "%~f0"\r\n')
                     import subprocess
+                    subprocess.Popen(
+                        ["cmd.exe", "/c", bat_path],
+                        creationflags=subprocess.DETACHED_PROCESS
+                                      | subprocess.CREATE_NEW_PROCESS_GROUP
+                                      | subprocess.CREATE_NO_WINDOW,
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    # Fallback: try direct launch methods
+                    debug_log("Batch restart failed: " + traceback.format_exc())
                     try:
-                        subprocess.Popen(
-                            [target_path],
-                            creationflags=subprocess.DETACHED_PROCESS
-                                          | subprocess.CREATE_NEW_PROCESS_GROUP,
-                            stdin=subprocess.DEVNULL,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
+                        os.startfile(target_path)
                     except Exception:
-                        pass
+                        try:
+                            subprocess.Popen([target_path],
+                                creationflags=subprocess.DETACHED_PROCESS)
+                        except Exception:
+                            pass
 
                 os._exit(0)
             self.after(0, _auto_restart)

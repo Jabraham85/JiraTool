@@ -10,6 +10,7 @@ build/
 templates.json
 jira_debug.log
 *.old.exe
+_restart.bat
 build_entry.py
 _create_release.py
 _verify_release.py
