@@ -486,6 +486,11 @@ class UploadMixin:
             save_storage(self.templates, self.meta)
         except Exception:
             pass
+        # Remove successfully uploaded tickets from the bundle
+        success_tickets = {id(ticket) for ticket, _ in successes}
+        self.bundle = [t for t in self.bundle if id(t) not in success_tickets]
+        self.update_bundle_listbox()
+
         # Add created tickets to list_items and switch to Welcome
         created_items = []
         existing_keys = {str(it.get("Issue key") or it.get("Issue id") or "") for it in self.list_items}
@@ -592,6 +597,13 @@ class UploadMixin:
         ttk.Button(btn_frame, text="Open selected in app", command=open_in_app).pack(side="left", padx=(0, 8))
         if jira_base:
             ttk.Button(btn_frame, text="Jira", command=open_in_jira).pack(side="left", padx=(0, 8))
+            def copy_all_links():
+                links = [f"{jira_base.rstrip('/')}/browse/{k}" for k in keys]
+                if links:
+                    win.clipboard_clear()
+                    win.clipboard_append("\n".join(links))
+                    messagebox.showinfo("Copied", f"{len(links)} link(s) copied to clipboard.")
+            ttk.Button(btn_frame, text="Copy All Links", command=copy_all_links).pack(side="left", padx=(0, 8))
         ttk.Button(btn_frame, text="Close", command=win.destroy).pack(side="right")
 
     # ── Inline-image media resolution ──────────────────────────────────────

@@ -11,7 +11,7 @@ from tkinter import ttk, messagebox
 
 import requests
 
-from config import APP_VERSION, GITHUB_VERSION_URL
+from config import APP_VERSION, GITHUB_VERSION_URLS, GITHUB_VERSION_URL
 from storage import save_storage
 from utils import debug_log
 
@@ -27,6 +27,16 @@ def _parse_version(v: str):
 class UpdaterMixin:
     """Mixin providing GitHub-based update checking and downloading."""
 
+    def _get_update_channel(self):
+        return self.meta.get("update_channel", "stable")
+
+    def _set_update_channel(self, channel):
+        self.meta["update_channel"] = channel
+        try:
+            save_storage(self.templates, self.meta)
+        except Exception:
+            pass
+
     def _check_for_updates(self, manual: bool = False):
         """Check GitHub for a newer version.  Runs the network call in a
         background thread so the UI stays responsive.
@@ -34,11 +44,13 @@ class UpdaterMixin:
         *manual* — when True (user clicked "Check for Updates"), ignore the
         skipped-version preference and always show the prompt.
         """
-        self._log_startup("Checking for updates...", "step")
+        channel = self._get_update_channel()
+        url = GITHUB_VERSION_URLS.get(channel, GITHUB_VERSION_URL)
+        self._log_startup(f"Checking for updates ({channel})...", "step")
 
         def worker():
             try:
-                resp = requests.get(GITHUB_VERSION_URL, timeout=10)
+                resp = requests.get(url, timeout=10)
                 resp.raise_for_status()
                 data = resp.json()
             except Exception:
@@ -82,8 +94,10 @@ class UpdaterMixin:
     def _prompt_and_apply_update(self, remote_version, download_url, changelog):
         """Show an update dialog and, if accepted, download and replace the
         current executable."""
+        channel = self._get_update_channel()
+        ch_label = "experimental" if channel == "experimental" else "stable"
         self._log_startup(
-            f"Update available: v{APP_VERSION} → v{remote_version}", "step")
+            f"Update available ({ch_label}): v{APP_VERSION} → v{remote_version}", "step")
 
         _BG     = "#1e1e1e"
         _PANEL  = "#252526"

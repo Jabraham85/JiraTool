@@ -402,6 +402,36 @@ class DescMixin:
                             f'{_html.escape(url)}</a>'
                         )
                     return ""
+                if t == "mention":
+                    text = (n.get("attrs") or {}).get("text", "")
+                    if not text:
+                        text = "@" + ((n.get("attrs") or {}).get("id", "unknown"))
+                    return (
+                        f'<span style="color:#4a9eff;background:#1a365d;'
+                        f'padding:1px 4px;border-radius:3px">'
+                        f'{_html.escape(text)}</span>'
+                    )
+                if t == "emoji":
+                    shortName = (n.get("attrs") or {}).get("shortName", "")
+                    text = (n.get("attrs") or {}).get("text", shortName)
+                    return _html.escape(text) if text else ""
+                if t == "status":
+                    text = (n.get("attrs") or {}).get("text", "")
+                    color = (n.get("attrs") or {}).get("color", "neutral")
+                    _status_colors = {
+                        "neutral": "#555", "purple": "#6554c0",
+                        "blue": "#0065ff", "red": "#de350b",
+                        "yellow": "#ff991f", "green": "#36b37e",
+                    }
+                    bg = _status_colors.get(color, "#555")
+                    return (
+                        f'<span style="background:{bg};color:#fff;'
+                        f'padding:2px 6px;border-radius:3px;font-size:0.85em;'
+                        f'font-weight:bold">{_html.escape(text)}</span>'
+                    )
+                if t == "date":
+                    ts = (n.get("attrs") or {}).get("timestamp", "")
+                    return _html.escape(ts)
                 if t == "heading":
                     lvl  = min(6, max(1, int((n.get("attrs") or {}).get("level", 1))))
                     inner = "".join(node_to_html(c, path) for c in n.get("content", []))

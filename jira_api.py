@@ -837,6 +837,16 @@ class JiraAPIMixin:
                 t = n.get("type")
                 if t == "text" and "text" in n:
                     out.append(n.get("text", ""))
+                elif t == "mention":
+                    out.append((n.get("attrs") or {}).get("text", ""))
+                elif t == "emoji":
+                    out.append((n.get("attrs") or {}).get("text", "") or (n.get("attrs") or {}).get("shortName", ""))
+                elif t == "status":
+                    out.append((n.get("attrs") or {}).get("text", ""))
+                elif t == "date":
+                    out.append((n.get("attrs") or {}).get("timestamp", ""))
+                elif t == "hardBreak":
+                    out.append("\n")
                 else:
                     for k in ("content",):
                         if k in n:

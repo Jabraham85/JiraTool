@@ -425,13 +425,13 @@ class TabForm(DescMixin):
         links_outer = getattr(self, "_issue_links_section_outer", None)
 
         if not is_epic or not epic_outer:
-            return
+                return
 
         # Find the Description ADF row as the anchor — sections go right after it
         adf_info = self.field_widgets.get("Description ADF")
         anchor = adf_info.get("adf_row") if adf_info else None
         if not anchor:
-            return
+                return
 
         try:
             # Re-pack epic section right after the description
@@ -1600,7 +1600,7 @@ class TabForm(DescMixin):
         link_type = self._new_link_type_var.get().strip()
         key       = self._new_link_key_var.get().strip().upper()
         if not key:
-            return
+                    return
         # Normalise direction: if the label starts with "is " it's typically inward
         direction = "inward" if link_type.startswith("is ") else "outward"
         self._issue_links_data.append({

@@ -1,6 +1,8 @@
 """
 MassEditMixin — Mass edit selected Jira issues.
 """
+import json
+import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -45,8 +47,8 @@ class MassEditMixin:
         dlg = tk.Toplevel(self)
         self._register_toplevel(dlg)
         dlg.title(f"Mass Edit — {len(issues)} issue(s)")
-        dlg.minsize(520, 400)
-        dlg.geometry("600x480")
+        dlg.minsize(520, 480)
+        dlg.geometry("620x560")
         dlg.resizable(True, True)
 
         main = ttk.Frame(dlg, padding=12)
@@ -481,28 +483,15 @@ class MassEditMixin:
             # 4) Refresh list_items from Jira for updated issues
             prog_var.set("Refreshing updated issues...")
             dlg.update_idletasks()
+            from config import FETCH_FIELDS
             for issue_key in successes:
                 try:
-                    fresh = self.fetch_issue_details(session, issue_key)
-                    fresh_fields = fresh.get("fields") or {}
+                    fresh_json = self.fetch_issue_details(session, issue_key, fields=FETCH_FIELDS)
+                    refreshed = self._map_issue_json_to_dict(fresh_json)
+                    self._enrich_with_internal_priority(refreshed)
                     for li_idx, it in issues:
                         if (it.get("Issue key") or "") == issue_key:
-                            it["Summary"] = fresh_fields.get("summary") or it.get("Summary", "")
-                            it["Status"] = (fresh_fields.get("status") or {}).get("name", it.get("Status", ""))
-                            it["Priority"] = (fresh_fields.get("priority") or {}).get("name", it.get("Priority", ""))
-                            it["Assignee"] = (fresh_fields.get("assignee") or {}).get("displayName", "") or \
-                                             (fresh_fields.get("assignee") or {}).get("emailAddress", "")
-                            it["Labels"] = "; ".join(fresh_fields.get("labels") or [])
-                            comps = fresh_fields.get("components") or []
-                            it["Components"] = "; ".join(c.get("name", "") for c in comps)
-                            sprints = fresh_fields.get("customfield_10020") or []
-                            if sprints:
-                                active = [s for s in sprints if isinstance(s, dict) and s.get("state") == "active"]
-                                pick = active[0] if active else sprints[-1]
-                                it["Sprint"] = pick.get("name", "") if isinstance(pick, dict) else ""
-                            fv = fresh_fields.get("fixVersions") or []
-                            it["Fix Version"] = "; ".join(v.get("name", "") for v in fv if isinstance(v, dict))
-                            it["Updated"] = fresh_fields.get("updated", it.get("Updated", ""))
+                            it.update(refreshed)
                             break
                 except Exception:
                     pass

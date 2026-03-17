@@ -1,5 +1,5 @@
 {
-    "version": "1.3.2",
-    "download_url": "https://github.com/Jabraham85/JiraTool/releases/download/v1.3.2/Avalanche.exe",
-    "changelog": "Same as stable v1.3.2 — no experimental changes yet."
+    "version": "1.4.0",
+    "download_url": "https://github.com/Jabraham85/JiraTool/releases/download/v1.4.0/Avalanche.exe",
+    "changelog": "Kanban board, bulk import #overrides, template repointing, upload improvements, ADF mention/emoji rendering, stable/experimental update channels."
 }

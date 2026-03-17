@@ -97,19 +97,27 @@ class ListViewMixin:
             pass
 
     def toggle_list_view(self):
-        if self.view_mode == "tabs":
-            self.show_list_view()
-        else:
-            self.show_tabs_view()
+        cycle = ["tabs", "list", "kanban"]
+        try:
+            idx = cycle.index(self.view_mode)
+        except ValueError:
+            idx = 0
+        nxt = cycle[(idx + 1) % len(cycle)]
+        {"tabs": self.show_tabs_view,
+         "list": self.show_list_view,
+         "kanban": self.show_kanban_view}[nxt]()
 
     def show_list_view(self):
         try:
             self.notebook.pack_forget()
         except Exception:
             pass
+        self._hide_kanban()
         self.list_frame.pack(fill="both", expand=True, padx=8, pady=8)
         self._list_filter_bar.pack(side="left", padx=(0, 4))
         self.view_mode = "list"
+        if hasattr(self, "_view_var"):
+            self._view_var.set("list")
         self._populate_listview()
 
     def show_tabs_view(self):
@@ -121,8 +129,11 @@ class ListViewMixin:
             self._list_filter_bar.pack_forget()
         except Exception:
             pass
+        self._hide_kanban()
         self.notebook.pack(fill="both", expand=True, padx=8, pady=8)
         self.view_mode = "tabs"
+        if hasattr(self, "_view_var"):
+            self._view_var.set("tabs")
 
     # ---------------- CSV import to list ----------------
     def import_csv_to_list(self):

@@ -12,6 +12,68 @@ from config import HEADERS
 from storage import save_storage
 from utils import debug_log, _bind_mousewheel
 
+# Fields eligible for #override in bulk import (real names with spaces)
+_OVERRIDE_FIELDS = sorted([
+    "Assignee", "Components", "Environment", "Epic Link",
+    "Fix Version", "Issue Type", "Labels", "Original Estimate",
+    "Priority", "Project key", "Remaining Estimate", "Reporter",
+    "Sprint", "Status",
+])
+
+# Display versions use _ so the parser can unambiguously find where the
+# field name ends and the value begins (e.g. #Issue_Type Bug)
+_FIELD_TO_DISPLAY = {f: f.replace(" ", "_") for f in _OVERRIDE_FIELDS}
+_DISPLAY_TO_FIELD = {v: k for k, v in _FIELD_TO_DISPLAY.items()}
+_OVERRIDE_DISPLAY = sorted(_FIELD_TO_DISPLAY.values())
+
+
+def _parse_hash_overrides(lines, meta_options=None):
+    """Separate ``#Field_Name value`` lines from regular content.
+
+    Returns (overrides_dict, remaining_lines).
+    Labels accumulate with ``'; '`` separator.
+    For single-value fields with known options, snaps to the first matching option.
+    Field names use _ for spaces (e.g. ``#Issue_Type Story``).
+    """
+    overrides = {}
+    remaining = []
+    opts_map = meta_options or {}
+    for line in lines:
+        if not line.startswith("#"):
+            remaining.append(line)
+            continue
+        after = line[1:]
+        matched = None
+        # Match against display names (with underscores)
+        for disp in _OVERRIDE_DISPLAY:
+            al = after.lower()
+            dl = disp.lower()
+            if al.startswith(dl + " ") or al.startswith(dl + ":") or al == dl:
+                matched = _DISPLAY_TO_FIELD[disp]
+                # Use display name length for value extraction
+                val = after[len(disp):].lstrip(": ").strip()
+                break
+        if matched:
+            if matched == "Labels":
+                parts = [p.strip() for p in val.replace(",", ";").split(";") if p.strip()]
+                clean = "; ".join(parts)
+                existing = overrides.get(matched, "")
+                overrides[matched] = (existing + "; " + clean).lstrip("; ") if existing else clean
+            else:
+                known = sorted(opts_map.get(matched, []))
+                if known and val:
+                    exact = [o for o in known if o.lower() == val.lower()]
+                    if exact:
+                        val = exact[0]
+                    else:
+                        prefix_match = [o for o in known if o.lower().startswith(val.lower())]
+                        if prefix_match:
+                            val = prefix_match[0]
+                overrides[matched] = val
+        else:
+            remaining.append(line)
+    return overrides, remaining
+
 
 class BulkImportMixin:
     """Mixin providing bulk_import_dialog."""
@@ -28,7 +90,7 @@ class BulkImportMixin:
         self._register_toplevel(dlg)
         dlg.title("Bulk Import Tickets")
         dlg.minsize(520, 520)
-        dlg.geometry("640x620")
+        dlg.geometry("640x660")
         dlg.resizable(True, True)
         # Template
         tpl_frame = ttk.Frame(dlg)
@@ -65,7 +127,7 @@ class BulkImportMixin:
         excl_starts_var = tk.StringVar(value=opts.get("exclude_starts_with", ""))
         ttk.Label(row2, text="Starting with:").pack(side="left", padx=(12, 4))
         ttk.Entry(row2, textvariable=excl_starts_var, width=12).pack(side="left", padx=(0, 8))
-        ttk.Label(row2, text="(e.g. # or //)").pack(side="left")
+        ttk.Label(row2, text="(e.g. // or --)").pack(side="left")
         # Summary mode
         row3 = ttk.Frame(opt_frame)
         row3.pack(fill="x", pady=2)
@@ -96,7 +158,11 @@ class BulkImportMixin:
             ttk.Radiobutton(row5, text=lbl, variable=cfmt_var, value=val).pack(side="left", padx=(0, 12))
         ttk.Label(row5, text="(how detail lines are inserted for !)").pack(side="left")
         # Paste box
-        ttk.Label(dlg, text="Paste below. Structured: blank line = new ticket. First line = title; lines after = details for ! placeholders (or end of ticket if none).").pack(anchor="w", padx=8, pady=(8, 4))
+        hint_text = (
+            "Paste below. Use #Field_Name value to override a field "
+            "(e.g. #Priority High, #Issue_Type Bug, #Labels UI; Audio). Autocomplete will assist."
+        )
+        ttk.Label(dlg, text=hint_text, wraplength=600).pack(anchor="w", padx=8, pady=(8, 4))
         paste_frame = ttk.Frame(dlg)
         paste_frame.pack(fill="both", expand=True, padx=8, pady=4)
         paste_txt = tk.Text(paste_frame, height=14, wrap="word", font=("Segoe UI", 10), bg="#1e1e1e", fg="#dcdcdc", insertbackground="#dcdcdc")
@@ -105,12 +171,198 @@ class BulkImportMixin:
         paste_sb.pack(side="right", fill="y")
         paste_txt.configure(yscrollcommand=paste_sb.set)
         _bind_mousewheel(paste_txt, "vertical")
-        # Buttons
+
+        # ── # Override autocomplete popup ──────────────────────────
+        ac_win = tk.Toplevel(dlg)
+        ac_win.withdraw()
+        ac_win.overrideredirect(True)
+        ac_win.attributes("-topmost", True)
+        ac_lb = tk.Listbox(
+            ac_win, height=8, width=45, font=("Segoe UI", 10),
+            bg="#252526", fg="#dcdcdc", selectbackground="#094771",
+            selectforeground="#ffffff", activestyle="none",
+            borderwidth=1, relief="solid",
+        )
+        ac_lb.pack(fill="both", expand=True)
+        _ac_phase = [None]   # "field" | "value" | None
+        _ac_field = [None]   # matched field name when phase == "value"
+
+        def _cur_line():
+            idx = paste_txt.index("insert")
+            ln = idx.split(".")[0]
+            return paste_txt.get(f"{ln}.0", f"{ln}.end"), f"{ln}.0", f"{ln}.end"
+
+        def _position():
+            bbox = paste_txt.bbox("insert")
+            if not bbox:
+                return
+            x, y, _, h = bbox
+            ac_win.geometry(
+                f"+{paste_txt.winfo_rootx() + x}+{paste_txt.winfo_rooty() + y + h + 2}"
+            )
+
+        def _show(items):
+            ac_lb.delete(0, "end")
+            for it in items[:25]:
+                ac_lb.insert("end", it)
+            if items:
+                _position()
+                ac_win.deiconify()
+                ac_win.lift()
+            else:
+                ac_win.withdraw()
+
+        def _matched_display(after_hash):
+            """Return (real_field_name, display_name) if after_hash starts with a known field."""
+            al = after_hash.lower()
+            for disp in _OVERRIDE_DISPLAY:
+                dl = disp.lower()
+                if al.startswith(dl + " ") or al.startswith(dl + ":") or al == dl:
+                    return _DISPLAY_TO_FIELD[disp], disp
+            return None, None
+
+        _MULTIVALUE_OVERRIDE = {"Labels"}
+
+        def _update_ac(event=None):
+            try:
+                line, _, _ = _cur_line()
+            except tk.TclError:
+                return
+            if not line.startswith("#"):
+                ac_win.withdraw()
+                _ac_phase[0] = None
+                return
+            after = line[1:]
+            real, disp = _matched_display(after)
+            if real and (after.lower().startswith(disp.lower() + " ")
+                         or after.lower().startswith(disp.lower() + ":")):
+                val_part = after[len(disp):].lstrip(": ")
+                _ac_phase[0] = "value"
+                _ac_field[0] = real
+                opts_list = sorted(self.meta.get("options", {}).get(real, []))
+                if not opts_list:
+                    ac_win.withdraw()
+                    return
+                # For single-value fields, stop prompting once an exact match exists
+                if real not in _MULTIVALUE_OVERRIDE:
+                    if val_part and any(o.lower() == val_part.lower() for o in opts_list):
+                        ac_win.withdraw()
+                        return
+                # For Labels, autocomplete the segment after the last separator
+                if real in _MULTIVALUE_OVERRIDE and "; " in val_part:
+                    last_seg = val_part.rsplit("; ", 1)[-1]
+                    vl = last_seg.lower()
+                else:
+                    vl = val_part.lower()
+                filtered = [o for o in opts_list if o.lower().startswith(vl)] if vl else opts_list
+                _show(filtered)
+            else:
+                _ac_phase[0] = "field"
+                q = after.strip().lower()
+                filtered = ([d for d in _OVERRIDE_DISPLAY if d.lower().startswith(q)]
+                            if q else list(_OVERRIDE_DISPLAY))
+                _show(filtered)
+
+        def _accept(event=None):
+            sel = ac_lb.curselection()
+            if not sel:
+                ac_win.withdraw()
+                return
+            chosen = ac_lb.get(sel[0])
+            _, ls, le = _cur_line()
+            if _ac_phase[0] == "field":
+                # chosen is already a display name (with _)
+                new = f"#{chosen} "
+                paste_txt.delete(ls, le)
+                paste_txt.insert(ls, new)
+                paste_txt.mark_set("insert", f"{ls}+{len(new)}c")
+                ac_win.withdraw()
+                paste_txt.after(20, _update_ac)
+            elif _ac_phase[0] == "value":
+                field = _ac_field[0]
+                field_disp = _FIELD_TO_DISPLAY[field]
+                if field in _MULTIVALUE_OVERRIDE:
+                    cur_line_text = paste_txt.get(ls, le)
+                    val_part = cur_line_text[1 + len(field_disp):].lstrip(": ")
+                    if "; " in val_part:
+                        prefix = val_part.rsplit("; ", 1)[0] + "; "
+                    else:
+                        prefix = ""
+                    new = f"#{field_disp} {prefix}{chosen}; "
+                    paste_txt.delete(ls, le)
+                    paste_txt.insert(ls, new)
+                    paste_txt.mark_set("insert", f"{ls}+{len(new)}c")
+                    ac_win.withdraw()
+                    paste_txt.after(20, _update_ac)
+                else:
+                    new = f"#{field_disp} {chosen}"
+                    paste_txt.delete(ls, le)
+                    paste_txt.insert(ls, new)
+                    paste_txt.mark_set("insert", f"{ls}+{len(new)}c")
+                    ac_win.withdraw()
+            paste_txt.focus_set()
+
+        ac_lb.bind("<ButtonRelease-1>", lambda e: paste_txt.after(10, _accept))
+
+        _SKIP_NAV = {
+            "Shift_L", "Shift_R", "Control_L", "Control_R",
+            "Alt_L", "Alt_R", "Caps_Lock",
+            "Up", "Down", "Left", "Right",
+            "Tab", "Return", "Escape",
+        }
+
+        def _on_key(event):
+            try:
+                vis = ac_win.winfo_viewable()
+            except tk.TclError:
+                return
+            if event.keysym == "Escape" and vis:
+                ac_win.withdraw()
+                return "break"
+            if event.keysym in ("Tab", "Return") and vis and ac_lb.curselection():
+                _accept()
+                return "break"
+            if event.keysym == "Down" and vis:
+                cur = ac_lb.curselection()
+                nxt = (cur[0] + 1) if cur else 0
+                if nxt < ac_lb.size():
+                    ac_lb.selection_clear(0, "end")
+                    ac_lb.selection_set(nxt)
+                    ac_lb.see(nxt)
+                return "break"
+            if event.keysym == "Up" and vis:
+                cur = ac_lb.curselection()
+                prv = (cur[0] - 1) if cur else 0
+                if prv >= 0:
+                    ac_lb.selection_clear(0, "end")
+                    ac_lb.selection_set(prv)
+                    ac_lb.see(prv)
+                return "break"
+
+        paste_txt.bind("<KeyPress>", _on_key)
+        paste_txt.bind("<KeyRelease>", lambda e: (
+            _update_ac() if e.keysym not in _SKIP_NAV else None
+        ))
+        paste_txt.bind("<Button-1>", lambda e: paste_txt.after(20, _update_ac))
+
+        def _hide_on_focus_loss(event=None):
+            try:
+                if ac_win.winfo_viewable():
+                    ac_win.withdraw()
+            except tk.TclError:
+                pass
+
+        paste_txt.bind("<FocusOut>", lambda e: paste_txt.after(80, _hide_on_focus_loss))
+        dlg.bind("<Deactivate>", _hide_on_focus_loss)
+        dlg.bind("<Unmap>", _hide_on_focus_loss)
+
+        # ── Import logic ───────────────────────────────────────────
         def do_import():
             template_name = tpl_var.get().strip()
             if not template_name or template_name not in self.templates:
                 messagebox.showerror("Error", "Select a valid template.")
                 return
+            ac_win.withdraw()
             text = paste_txt.get("1.0", "end").strip()
             if not text:
                 messagebox.showinfo("Info", "Paste some text first.")
@@ -142,6 +394,8 @@ class BulkImportMixin:
                 items = []
                 for bi, block in enumerate(blocks):
                     lines = [raw.strip() for raw in block.split("\n")]
+                    # Extract # overrides BEFORE exclude filter so they aren't stripped
+                    overrides, lines = _parse_hash_overrides(lines, self.meta.get("options", {}))
                     if excl_start:
                         lines = [s for s in lines if not (s and s.startswith(excl_start))]
                     if excl_empty_var.get():
@@ -155,17 +409,19 @@ class BulkImportMixin:
                             continue
                     title = lines[0]
                     details = "\n".join(lines[1:]) if len(lines) > 1 else ""
-                    items.append((title, details))
+                    items.append((title, details, overrides))
             else:
                 delim_map = {"newline": "\n", "comma": ",", "semicolon": ";", "tab": "\t", "pipe": "|"}
                 sep = delim_map.get(delim_var.get(), "\n")
-                raw_items = [s.strip() for s in text.split(sep)]
-                for s in raw_items:
+                all_lines = [s.strip() for s in text.split(sep)]
+                # In non-structured mode, # overrides apply globally to all tickets
+                global_overrides, remaining = _parse_hash_overrides(all_lines, self.meta.get("options", {}))
+                for s in remaining:
                     if excl_empty_var.get() and not s:
                         continue
                     if excl_start and s.startswith(excl_start):
                         continue
-                    items.append((s, ""))
+                    items.append((s, "", dict(global_overrides)))
             if not items:
                 messagebox.showinfo("Info", "No items after applying exclude rules.")
                 return
@@ -173,7 +429,7 @@ class BulkImportMixin:
             base_summary = (self.templates[template_name].get("Summary") or "").strip()
             sep_str = (sep_var.get() or " ").strip() or " "
             created = 0
-            for i, (summary, field_content_lines) in enumerate(items):
+            for i, (summary, field_content_lines, overrides) in enumerate(items):
                 ticket = copy.deepcopy(self.templates[template_name])
                 # Apply summary mode (replace/prepend/append) for all modes including structured
                 if mode == "replace" or mode == "structured":
@@ -267,7 +523,7 @@ class BulkImportMixin:
                                                     p_list.insert(p_idx + 1 + ni, n)
                                         elif isinstance(adf.get("content"), list):
                                             adf["content"].extend(new_nodes)
-                                ticket["Description ADF"] = adf
+                            ticket["Description ADF"] = adf
                         # Replace ! in string fields (skip Description — it mirrors ADF)
                         for h in HEADERS:
                             if h in _SKIP_EXCL_FIELDS:
@@ -316,6 +572,9 @@ class BulkImportMixin:
                                             ticket["Description ADF"] = {"type": "doc", "version": 1, "content": new_nodes}
                                         else:
                                             ticket["Description ADF"] = self._text_to_adf(bottom_text)
+                # Apply # field overrides last so they take priority over template values
+                for fn, fv in overrides.items():
+                    ticket[fn] = fv
                 ticket["Issue id"] = str(uuid.uuid4())
                 ticket["Issue key"] = "LOCAL-" + ticket["Issue id"][:8]
                 self.bundle.append(ticket)
@@ -330,6 +589,10 @@ class BulkImportMixin:
                 self.after(50, on_close)
 
         def _cancel():
+            try:
+                ac_win.withdraw()
+            except tk.TclError:
+                pass
             dlg.destroy()
             if on_close:
                 self.after(50, on_close)

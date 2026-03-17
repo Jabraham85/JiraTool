@@ -3,7 +3,13 @@ Avalanche Jira Template Creator — shared constants and configuration.
 """
 
 APP_VERSION = "1.3.2"
-GITHUB_VERSION_URL = "https://raw.githubusercontent.com/Jabraham85/JiraTool/main/version.json"
+
+# Update channels — each points to its own version manifest on GitHub
+GITHUB_VERSION_URLS = {
+    "stable": "https://raw.githubusercontent.com/Jabraham85/JiraTool/main/version.json",
+    "experimental": "https://raw.githubusercontent.com/Jabraham85/JiraTool/main/version_experimental.json",
+}
+GITHUB_VERSION_URL = GITHUB_VERSION_URLS["stable"]  # legacy fallback
 
 TEMPLATES_FILE = "templates.json"
 DEBUG_LOG = "jira_debug.log"
@@ -44,6 +50,12 @@ FETCHABLE_OPTION_FIELDS = {
 }
 
 MULTISELECT_FIELDS = {"Labels"}
+
+DEFAULT_KANBAN_COLUMNS = [
+    {"name": "To Do",       "statuses": ["To Do", "Open", "Backlog", "New"]},
+    {"name": "In Progress", "statuses": ["In Progress", "In Review", "In Development"]},
+    {"name": "Done",        "statuses": ["Done", "Closed", "Resolved", "Complete", "Completed"]},
+]
 
 _JIRA_FIELDS_FALLBACK = [
     ("summary", "Summary"), ("description", "Description"),

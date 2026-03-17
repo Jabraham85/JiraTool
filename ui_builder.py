@@ -4,9 +4,11 @@ UI construction and theme mixin for Avalanche.
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
+import os
+
 from utils import _bind_mousewheel, _bind_mousewheel_to_target, _NotebookWithCloseTabs, debug_log
-from storage import save_storage
-from config import HEADERS
+from storage import save_storage, load_storage
+from config import HEADERS, TEMPLATES_FILE
 
 
 class UIBuilderMixin:
@@ -124,9 +126,35 @@ class UIBuilderMixin:
         ttk.Button(help_frame, text="Show Tutorial", command=lambda: self._run_tutorial(force=True)).pack(fill="x", pady=2)
         ttk.Button(help_frame, text="Check for Updates",
                    command=lambda: self._check_for_updates(manual=True)).pack(fill="x", pady=2)
+        # Update channel selector
+        chan_row = ttk.Frame(help_frame)
+        chan_row.pack(fill="x", pady=(4, 0))
+        ttk.Label(chan_row, text="Channel:", font=("Segoe UI", 9)).pack(side="left")
+        _chan_var = tk.StringVar(value=self.meta.get("update_channel", "stable"))
+        def _on_channel_change(*_a):
+            self._set_update_channel(_chan_var.get())
+        _chan_var.trace_add("write", _on_channel_change)
+        for ch_val, ch_lbl in [("stable", "Stable"), ("experimental", "Experimental")]:
+            ttk.Radiobutton(chan_row, text=ch_lbl, variable=_chan_var,
+                            value=ch_val).pack(side="left", padx=(6, 0))
         from config import APP_VERSION as _v
         ttk.Label(help_frame, text=f"v{_v}", foreground="#888888",
                   font=("Segoe UI", 8)).pack(anchor="e", pady=(2, 0))
+        # Data
+        ttk.Separator(left, orient="horizontal").pack(fill="x", padx=8, pady=8)
+        ttk.Label(left, text="Data", font=("Segoe UI", 11, "bold")).pack(anchor="w", padx=8, pady=(4, 0))
+        data_frame = ttk.Frame(left)
+        data_frame.pack(fill="x", padx=8, pady=6)
+        self._templates_path_var = tk.StringVar(value=os.path.abspath(TEMPLATES_FILE))
+        ttk.Label(data_frame, text="Templates file:", font=("Segoe UI", 9)).pack(anchor="w")
+        path_entry = tk.Entry(data_frame, textvariable=self._templates_path_var,
+                              state="readonly", readonlybackground="#2a2a2a",
+                              fg="#aaaaaa", font=("Segoe UI", 8), relief="flat")
+        path_entry.pack(fill="x", pady=(2, 4))
+        ttk.Button(data_frame, text="Load Templates from File…",
+                   command=self._browse_and_load_templates).pack(fill="x", pady=2)
+        ttk.Button(data_frame, text="Reload Current File",
+                   command=self._reload_templates_file).pack(fill="x", pady=2)
         # Bundle
         ttk.Separator(left, orient="horizontal").pack(fill="x", padx=8, pady=8)
         ttk.Label(left, text="Bundle", font=("Segoe UI", 11, "bold")).pack(anchor="w", padx=8, pady=(4, 0))
@@ -178,8 +206,15 @@ class UIBuilderMixin:
         ttk.Button(nb_controls, text="Close Tab", command=self.close_current_tab).pack(side="left", padx=6)
         ttk.Button(nb_controls, text="Duplicate Tab", command=self.duplicate_current_tab).pack(side="left", padx=6)
         ttk.Button(nb_controls, text="Save", command=self.save_current_tab).pack(side="left", padx=6)
-        self._tut_toggle_list_btn = ttk.Button(nb_controls, text="Toggle List View", command=self.toggle_list_view)
-        self._tut_toggle_list_btn.pack(side="left", padx=6)
+        view_frame = ttk.Frame(nb_controls)
+        view_frame.pack(side="left", padx=6)
+        self._view_var = tk.StringVar(value="tabs")
+        ttk.Radiobutton(view_frame, text="Tabs", variable=self._view_var,
+                         value="tabs", command=self.show_tabs_view).pack(side="left")
+        ttk.Radiobutton(view_frame, text="List", variable=self._view_var,
+                         value="list", command=self.show_list_view).pack(side="left", padx=4)
+        ttk.Radiobutton(view_frame, text="Kanban", variable=self._view_var,
+                         value="kanban", command=self.show_kanban_view).pack(side="left")
         _var_btn = ttk.Button(nb_controls, text="📌 Variable", command=self.define_variable_dialog)
         _var_btn.bind("<ButtonPress-1>", lambda e: self._snapshot_var_selection())
         _var_btn.pack(side="left", padx=6)
@@ -366,3 +401,95 @@ class UIBuilderMixin:
                     pass
         except Exception:
             pass
+
+    # ── Template file management ─────────────────────────────────────────────
+
+    def _browse_and_load_templates(self):
+        """Let user pick a templates.json file and load it."""
+        path = filedialog.askopenfilename(
+            title="Select a templates file",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            initialdir=os.path.dirname(os.path.abspath(TEMPLATES_FILE)),
+        )
+        if not path:
+            return
+        self._load_templates_from_path(path)
+
+    def _reload_templates_file(self):
+        """Reload the current templates file from disk."""
+        path = os.path.abspath(TEMPLATES_FILE)
+        if not os.path.isfile(path):
+            messagebox.showwarning("Reload", f"Templates file not found:\n{path}")
+            return
+        self._load_templates_from_path(path)
+
+    def _load_templates_from_path(self, path):
+        """Load templates + meta from the given JSON file and refresh the UI."""
+        import json
+        if not os.path.isfile(path):
+            messagebox.showerror("Error", f"File not found:\n{path}")
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as exc:
+            messagebox.showerror("Error", f"Failed to read file:\n{exc}")
+            return
+
+        if isinstance(data, dict) and ("templates" in data or "meta" in data):
+            new_templates = data.get("templates", {})
+            new_meta = data.get("meta", {})
+        elif isinstance(data, dict):
+            new_templates = data
+            new_meta = {}
+        else:
+            messagebox.showerror("Error", "File does not contain valid template data.")
+            return
+
+        import config
+        old_path = os.path.abspath(config.TEMPLATES_FILE)
+        config.TEMPLATES_FILE = path
+        if hasattr(self, "_templates_path_var"):
+            self._templates_path_var.set(path)
+
+        self.templates = new_templates
+        for key, val in new_meta.items():
+            self.meta[key] = val
+
+        from config import HEADERS as _h
+        self.meta.setdefault("options", {})
+        for h in _h:
+            self.meta["options"].setdefault(h, [])
+        self.meta.setdefault("jira", {})
+        self.meta.setdefault("fetched_issues", [])
+
+        import storage as _storage_mod
+        _storage_mod.TEMPLATES_FILE = config.TEMPLATES_FILE
+        save_storage(self.templates, self.meta)
+
+        welcome = getattr(self, "_welcome_frame", None)
+        for child in list(self.notebook.winfo_children()):
+            if child is welcome:
+                continue
+            self.notebook.forget(child)
+            child.destroy()
+
+        self.tabs.clear()
+        self._template_to_tab.clear()
+        self._tab_summaries.clear()
+
+        if welcome:
+            try:
+                self.notebook.select(welcome)
+            except Exception:
+                self._build_welcome_tab()
+        else:
+            self._build_welcome_tab()
+
+        self.refresh_templates()
+        self.show_tabs_view()
+
+        count = len(new_templates)
+        messagebox.showinfo("Templates Loaded",
+                            f"Loaded {count} template(s) from:\n{path}")
+        debug_log(f"[templates] Reloaded {count} templates from {path} (was {old_path})")

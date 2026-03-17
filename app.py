@@ -29,6 +29,7 @@ from dialogs.reminders import RemindersMixin
 from dialogs.upload_dialog import UploadDialogMixin
 from dialogs.bundle_share import BundleShareMixin
 from dialogs.updater import UpdaterMixin
+from kanban import KanbanMixin
 
 
 class AvalancheApp(
@@ -36,6 +37,7 @@ class AvalancheApp(
     TabManagementMixin,
     JiraAPIMixin,
     ListViewMixin,
+    KanbanMixin,
     VariablesMixin,
     UploadMixin,
     TutorialMixin,
@@ -92,6 +94,7 @@ class AvalancheApp(
         self.list_items = _dedup_list_items(self.meta.get("fetched_issues", []))
         self.list_frame = None
         self.list_tree = None
+        self.kanban_frame = None
         self._checked_tickets = set()
         self._session_refreshed_keys = set()
         self.list_search_var = None
@@ -661,41 +664,7 @@ class AvalancheApp(
                             consecutive_404 += 1
                         updates["failed"] += 1
                         continue
-                    fields = issue_json.get("fields", {}) or {}
-                    status_obj = fields.get("status") or {}
-                    issue_dict = {
-                        "Issue key": issue_json.get("key", ""),
-                        "Issue id": issue_json.get("id", ""),
-                        "Summary": fields.get("summary", "") or "",
-                        "Description": "",
-                        "Issue Type": (fields.get("issuetype") or {}).get("name", ""),
-                        "Status": status_obj.get("name", ""),
-                        "Status Category": (status_obj.get("statusCategory") or {}).get("name", ""),
-                        "Project key": (fields.get("project") or {}).get("key", ""),
-                        "Project name": (fields.get("project") or {}).get("name", ""),
-                        "Priority": (fields.get("priority") or {}).get("name", ""),
-                        "Assignee": (fields.get("assignee") or {}).get("displayName", "") or (fields.get("assignee") or {}).get("emailAddress", "") or "",
-                        "Reporter": (fields.get("reporter") or {}).get("displayName", "") or (fields.get("reporter") or {}).get("emailAddress", "") or "",
-                        "Created": fields.get("created", ""),
-                        "Updated": fields.get("updated", ""),
-                        "Labels": "; ".join(fields.get("labels") or []),
-                        "Components": "; ".join([c.get("name", "") for c in (fields.get("components") or [])])
-                    }
-                    rendered_html = (issue_json.get("renderedFields") or {}).get("description")
-                    if rendered_html:
-                        issue_dict["Description Rendered"] = rendered_html
-                    desc = fields.get("description", "")
-                    if isinstance(desc, str):
-                        issue_dict["Description"] = desc
-                    elif isinstance(desc, dict):
-                        issue_dict["Description ADF"] = desc
-                        try:
-                            issue_dict["Description"] = self._extract_text_from_adf(desc)
-                        except Exception:
-                            issue_dict["Description"] = ""
-                    else:
-                        issue_dict["Description"] = str(desc)
-                    issue_dict["Attachment"] = self._jira_attachments_to_field(fields.get("attachment")) or ""
+                    issue_dict = self._map_issue_json_to_dict(issue_json)
                     self._enrich_with_internal_priority(issue_dict)
                     self.list_items[idx] = issue_dict
                     updates["refreshed"] += 1
@@ -711,41 +680,7 @@ class AvalancheApp(
                             issue_json = self.fetch_issue_details(s, issue_id, fields=FETCH_FIELDS)
                         except Exception:
                             continue
-                        fields = issue_json.get("fields", {}) or {}
-                        status_obj = fields.get("status") or {}
-                        issue_dict = {
-                            "Issue key": issue_json.get("key", ""),
-                            "Issue id": issue_json.get("id", ""),
-                            "Summary": fields.get("summary", "") or "",
-                            "Description": "",
-                            "Issue Type": (fields.get("issuetype") or {}).get("name", ""),
-                            "Status": status_obj.get("name", ""),
-                            "Status Category": (status_obj.get("statusCategory") or {}).get("name", ""),
-                            "Project key": (fields.get("project") or {}).get("key", ""),
-                            "Project name": (fields.get("project") or {}).get("name", ""),
-                            "Priority": (fields.get("priority") or {}).get("name", ""),
-                            "Assignee": (fields.get("assignee") or {}).get("displayName", "") or (fields.get("assignee") or {}).get("emailAddress", "") or "",
-                            "Reporter": (fields.get("reporter") or {}).get("displayName", "") or (fields.get("reporter") or {}).get("emailAddress", "") or "",
-                            "Created": fields.get("created", ""),
-                            "Updated": fields.get("updated", ""),
-                            "Labels": "; ".join(fields.get("labels") or []),
-                            "Components": "; ".join([c.get("name", "") for c in (fields.get("components") or [])])
-                        }
-                        rendered_html = (issue_json.get("renderedFields") or {}).get("description")
-                        if rendered_html:
-                            issue_dict["Description Rendered"] = rendered_html
-                        desc = fields.get("description", "")
-                        if isinstance(desc, str):
-                            issue_dict["Description"] = desc
-                        elif isinstance(desc, dict):
-                            issue_dict["Description ADF"] = desc
-                            try:
-                                issue_dict["Description"] = self._extract_text_from_adf(desc)
-                            except Exception:
-                                issue_dict["Description"] = ""
-                        else:
-                            issue_dict["Description"] = str(desc)
-                        issue_dict["Attachment"] = self._jira_attachments_to_field(fields.get("attachment")) or ""
+                        issue_dict = self._map_issue_json_to_dict(issue_json)
                         self._enrich_with_internal_priority(issue_dict)
                         self.list_items.append(issue_dict)
                         updates["new"] += 1

@@ -863,46 +863,8 @@ class FetchMixin:
                     except Exception:
                         failed += 1
                         continue
-                    fields = issue_json.get("fields", {}) or {}
-                    status_obj = fields.get("status") or {}
-                    issue_dict = {
-                        "Issue key": issue_json.get("key", ""),
-                        "Issue id": issue_json.get("id", ""),
-                        "Summary": fields.get("summary", "") or "",
-                        "Description": "",
-                        "Issue Type": (fields.get("issuetype") or {}).get("name", ""),
-                        "Status": status_obj.get("name", ""),
-                        "Status Category": (status_obj.get("statusCategory") or {}).get("name", ""),
-                        "Project key": (fields.get("project") or {}).get("key", ""),
-                        "Project name": (fields.get("project") or {}).get("name", ""),
-                        "Priority": (fields.get("priority") or {}).get("name", ""),
-                        "Assignee": (fields.get("assignee") or {}).get("displayName", "") or
-                                    (fields.get("assignee") or {}).get("emailAddress", "") or "",
-                        "Reporter": (fields.get("reporter") or {}).get("displayName", "") or
-                                    (fields.get("reporter") or {}).get("emailAddress", "") or "",
-                        "Created": fields.get("created", ""),
-                        "Updated": fields.get("updated", ""),
-                        "Labels": "; ".join(fields.get("labels") or []),
-                        "Components": "; ".join(c.get("name", "") for c in (fields.get("components") or []))
-                    }
-                    rendered_html = (issue_json.get("renderedFields") or {}).get("description")
-                    if rendered_html:
-                        issue_dict["Description Rendered"] = rendered_html
-                    desc = fields.get("description", "")
-                    if isinstance(desc, str):
-                        issue_dict["Description"] = desc
-                    elif isinstance(desc, dict):
-                        issue_dict["Description ADF"] = desc
-                        try:
-                            issue_dict["Description"] = self._extract_text_from_adf(desc)
-                        except Exception:
-                            issue_dict["Description"] = ""
-                    else:
-                        issue_dict["Description"] = str(desc)
-                    issue_dict["Attachment"] = self._jira_attachments_to_field(
-                        fields.get("attachment")) or ""
-                    issue_dict["Comment"] = self._parse_jira_comments(fields.get("comment"))
-                    self._map_epic_and_link_fields(fields, issue_dict)
+                    issue_dict = self._map_issue_json_to_dict(issue_json)
+                    self._enrich_with_internal_priority(issue_dict)
                     new_issues.append(issue_dict)
                     new_added += 1
 
@@ -1073,44 +1035,8 @@ class FetchMixin:
                         fetched += 1
                         self.after(0, lambda: counts_lbl.config(text=f"{fetched}/{total} fetched, {new_added} new, {failed} failed"))
                         continue
-                    fields = issue_json.get("fields", {}) or {}
-                    status_obj = fields.get("status") or {}
-                    issue_dict = {
-                        "Issue key": issue_json.get("key", ""),
-                        "Issue id": issue_json.get("id", ""),
-                        "Summary": fields.get("summary", "") or "",
-                        "Description": "",
-                        "Issue Type": (fields.get("issuetype") or {}).get("name", ""),
-                        "Status": status_obj.get("name", ""),
-                        "Status Category": (status_obj.get("statusCategory") or {}).get("name", ""),
-                        "Project key": (fields.get("project") or {}).get("key", ""),
-                        "Project name": (fields.get("project") or {}).get("name", ""),
-                        "Priority": (fields.get("priority") or {}).get("name", ""),
-                        "Assignee": (fields.get("assignee") or {}).get("displayName", "") or (fields.get("assignee") or {}).get("emailAddress", "") or "",
-                        "Reporter": (fields.get("reporter") or {}).get("displayName", "") or (fields.get("reporter") or {}).get("emailAddress", "") or "",
-                        "Created": fields.get("created", ""),
-                        "Updated": fields.get("updated", ""),
-                        "Labels": "; ".join(fields.get("labels") or []),
-                        "Components": "; ".join([c.get("name", "") for c in (fields.get("components") or [])])
-                    }
-                    # Capture server-rendered HTML if Jira returned it
-                    rendered_html = (issue_json.get("renderedFields") or {}).get("description")
-                    if rendered_html:
-                        issue_dict["Description Rendered"] = rendered_html
-                    desc = fields.get("description", "")
-                    if isinstance(desc, str):
-                        issue_dict["Description"] = desc
-                    elif isinstance(desc, dict):
-                        issue_dict["Description ADF"] = desc
-                        try:
-                            issue_dict["Description"] = self._extract_text_from_adf(desc)
-                        except Exception:
-                            issue_dict["Description"] = ""
-                    else:
-                        issue_dict["Description"] = str(desc)
-                    issue_dict["Attachment"] = self._jira_attachments_to_field(fields.get("attachment")) or ""
-                    issue_dict["Comment"] = self._parse_jira_comments(fields.get("comment"))
-                    self._map_epic_and_link_fields(fields, issue_dict)
+                    issue_dict = self._map_issue_json_to_dict(issue_json)
+                    self._enrich_with_internal_priority(issue_dict)
                     results["issues"].append(issue_dict)
                     fetched += 1
                     existing_idx = next((i for i, it in enumerate(self.list_items) if it.get("Issue id") == issue_dict.get("Issue id")), None)
@@ -1152,43 +1078,7 @@ class FetchMixin:
         except Exception as e:
             messagebox.showerror("Refresh failed", str(e))
             return
-        fields = issue_json.get("fields", {}) or {}
-        status_obj = fields.get("status") or {}
-        issue_dict = {
-            "Issue key": issue_json.get("key", ""),
-            "Issue id": issue_json.get("id", ""),
-            "Summary": fields.get("summary", "") or "",
-            "Description": "",
-            "Issue Type": (fields.get("issuetype") or {}).get("name", ""),
-            "Status": status_obj.get("name", ""),
-            "Status Category": (status_obj.get("statusCategory") or {}).get("name", ""),
-            "Project key": (fields.get("project") or {}).get("key", ""),
-            "Project name": (fields.get("project") or {}).get("name", ""),
-            "Priority": (fields.get("priority") or {}).get("name", ""),
-            "Assignee": (fields.get("assignee") or {}).get("displayName", "") or (fields.get("assignee") or {}).get("emailAddress", "") or "",
-            "Reporter": (fields.get("reporter") or {}).get("displayName", "") or (fields.get("reporter") or {}).get("emailAddress", "") or "",
-            "Created": fields.get("created", ""),
-            "Updated": fields.get("updated", ""),
-            "Labels": "; ".join(fields.get("labels") or []),
-            "Components": "; ".join([c.get("name", "") for c in (fields.get("components") or [])])
-        }
-        rendered_html = (issue_json.get("renderedFields") or {}).get("description")
-        if rendered_html:
-            issue_dict["Description Rendered"] = rendered_html
-        desc = fields.get("description", "")
-        if isinstance(desc, str):
-            issue_dict["Description"] = desc
-        elif isinstance(desc, dict):
-            issue_dict["Description ADF"] = desc
-            try:
-                issue_dict["Description"] = self._extract_text_from_adf(desc)
-            except Exception:
-                issue_dict["Description"] = ""
-        else:
-            issue_dict["Description"] = str(desc)
-        issue_dict["Attachment"] = self._jira_attachments_to_field(fields.get("attachment")) or ""
-        issue_dict["Comment"] = self._parse_jira_comments(fields.get("comment"))
-        self._map_epic_and_link_fields(fields, issue_dict)
+        issue_dict = self._map_issue_json_to_dict(issue_json)
         self._enrich_with_internal_priority(issue_dict)
         tf.populate_from_dict(issue_dict)
         tab_frame = tf.frame
