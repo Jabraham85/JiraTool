@@ -63,12 +63,15 @@ class FetchMixin:
             fields.get("issuelinks"))
 
     def fetch_my_issues_dialog(self, on_close=None):
+        if self._focus_existing_app_dialog("fetch_issues"):
+            return
         s = self.get_jira_session()
         if not s:
             if on_close:
                 self.after(50, on_close)
             return
         dlg = tk.Toplevel(self)
+        self._track_app_dialog("fetch_issues", dlg)
 
         def _close_and_callback():
             dlg.destroy()
@@ -403,6 +406,8 @@ class FetchMixin:
 
     def auto_fetch_settings_dialog(self):
         """Dialog to configure and save the automatic fetch-on-startup criteria."""
+        if self._focus_existing_app_dialog("auto_fetch_settings"):
+            return
         cfg = dict(self.meta.get("auto_fetch_config") or {})
         opts = self.meta.get("options", {})
 
@@ -414,6 +419,7 @@ class FetchMixin:
         _ACCENT_HOV = "#1177bb"
 
         dlg = tk.Toplevel(self)
+        self._track_app_dialog("auto_fetch_settings", dlg)
         self._register_toplevel(dlg)
         dlg.title("Auto-Fetch Settings")
         dlg.configure(bg=_BG)

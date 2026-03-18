@@ -9,6 +9,8 @@ class UploadDialogMixin:
     """Mixin providing upload_bundle_to_jira_dialog."""
 
     def upload_bundle_to_jira_dialog(self):
+        if self._focus_existing_app_dialog("upload_bundle"):
+            return
         if not self.bundle:
             messagebox.showinfo("Info", "Bundle is empty.")
             return
@@ -16,6 +18,7 @@ class UploadDialogMixin:
         if not s:
             return
         dlg = tk.Toplevel(self)
+        self._track_app_dialog("upload_bundle", dlg)
         self._register_toplevel(dlg)
         dlg.title("Upload Bundle to Jira")
         dlg.minsize(450, 160)

@@ -811,7 +811,10 @@ class ListViewMixin:
             messagebox.showinfo("Info", "Check or select rows to move to a folder.")
             return
         folders = ["Unfiled"] + sorted(self.meta.get("folders", []))
+        if self._focus_existing_app_dialog("move_to_folder"):
+            return
         win = tk.Toplevel(self)
+        self._track_app_dialog("move_to_folder", win)
         self._register_toplevel(win)
         win.title("Move to Folder")
         win.minsize(320, 100)
@@ -911,7 +914,10 @@ class ListViewMixin:
     # ---------------- Folder management ----------------
     def manage_folders(self):
         """Create, rename, or delete folders."""
+        if self._focus_existing_app_dialog("manage_folders"):
+            return
         win = tk.Toplevel(self)
+        self._track_app_dialog("manage_folders", win)
         self._register_toplevel(win)
         win.title("Manage Folders")
         win.minsize(380, 320)

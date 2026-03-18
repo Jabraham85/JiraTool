@@ -1371,6 +1371,8 @@ class DescMixin:
 
     def _show_jira_preview(self):  # noqa: C901
         """Open a Toplevel showing the description in Jira's light-theme styling."""
+        if self._focus_existing_dialog("jira_preview"):
+            return
         doc       = self._adf_get_doc()
         body_html = self._convert_adf_to_html(doc) if doc else ""
         body_html = self._resolve_variables_in_html(body_html)
@@ -1428,6 +1430,7 @@ class DescMixin:
         )
 
         win = tk.Toplevel(self.frame.winfo_toplevel())
+        self._track_dialog("jira_preview", win)
         win.title("Jira Preview")
         win.configure(bg="#ffffff")
         win.update_idletasks()

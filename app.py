@@ -100,6 +100,7 @@ class AvalancheApp(
         self.list_search_var = None
         self._user_cache = dict(self.meta.get("user_cache", {}))
         self._toplevels = set()
+        self._open_app_dialogs = {}
         self._style = ttk.Style()
         try:
             self._orig_theme = self._style.theme_use()
@@ -173,6 +174,26 @@ class AvalancheApp(
                         pass
             except Exception:
                 pass
+
+    def _focus_existing_app_dialog(self, key):
+        """If an app-level dialog keyed by *key* is already open, bring it to front."""
+        existing = self._open_app_dialogs.get(key)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.deiconify()
+                    existing.lift()
+                    existing.focus_force()
+                    return True
+            except Exception:
+                pass
+            self._open_app_dialogs.pop(key, None)
+        return False
+
+    def _track_app_dialog(self, key, win):
+        """Register *win* under *key* and auto-remove when destroyed."""
+        self._open_app_dialogs[key] = win
+        win.bind("<Destroy>", lambda e, k=key: self._open_app_dialogs.pop(k, None), add=True)
 
     def _build_welcome_tab(self):
         """Create the Welcome landing pad tab."""

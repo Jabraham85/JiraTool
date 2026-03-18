@@ -53,7 +53,10 @@ class BundleShareMixin:
 
         bundle_name = getattr(self, "bundle_name", None) or "bundle"
 
+        if self._focus_existing_app_dialog("export_bundle"):
+            return
         win = tk.Toplevel(self)
+        self._track_app_dialog("export_bundle", win)
         self._register_toplevel(win)
         win.title("Export Bundle")
         win.geometry("640x540")
@@ -256,7 +259,10 @@ class BundleShareMixin:
             return
 
         # ── preview dialog ────────────────────────────────────────────────────
+        if self._focus_existing_app_dialog("import_bundle"):
+            return
         win = tk.Toplevel(self)
+        self._track_app_dialog("import_bundle", win)
         self._register_toplevel(win)
         win.title("Import Bundle")
         win.geometry("680x560")

@@ -18,7 +18,10 @@ class RemindersMixin:
 
     def configure_reminders_dialog(self, on_close=None):
         """Configure internal priority levels, options per level, and reminder rules."""
+        if self._focus_existing_app_dialog("reminders"):
+            return
         win = tk.Toplevel(self)
+        self._track_app_dialog("reminders", win)
         self._register_toplevel(win)
         win.title("Configure Reminders")
         win.minsize(520, 520)

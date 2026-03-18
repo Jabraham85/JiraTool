@@ -80,6 +80,8 @@ class BulkImportMixin:
 
     def bulk_import_dialog(self, on_close=None, prefill_text=None, prefill_template=None):
         """Open dialog to bulk import tickets from pasted summaries using a template."""
+        if self._focus_existing_app_dialog("bulk_import"):
+            return
         if not self.templates:
             messagebox.showinfo("Info", "Create at least one template first.")
             if on_close:
@@ -87,6 +89,7 @@ class BulkImportMixin:
             return
         opts = self.meta.setdefault("bulk_import", {})
         dlg = tk.Toplevel(self)
+        self._track_app_dialog("bulk_import", dlg)
         self._register_toplevel(dlg)
         dlg.title("Bulk Import Tickets")
         dlg.minsize(520, 520)

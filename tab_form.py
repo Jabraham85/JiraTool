@@ -118,6 +118,7 @@ class TabForm(DescMixin):
         self._last_ticket_key = None
         self.field_widgets = {}
         self.collapse_mode = False
+        self._open_dialogs = {}
 
         # sync control
         self._suppress_sync = False
@@ -444,8 +445,30 @@ class TabForm(DescMixin):
         except Exception:
             pass
 
+    def _focus_existing_dialog(self, key):
+        """If a dialog keyed by *key* is already open, bring it to front and return True."""
+        existing = self._open_dialogs.get(key)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.deiconify()
+                    existing.lift()
+                    existing.focus_force()
+                    return True
+            except Exception:
+                pass
+            self._open_dialogs.pop(key, None)
+        return False
+
+    def _track_dialog(self, key, win):
+        """Register *win* under *key* and auto-remove when destroyed."""
+        self._open_dialogs[key] = win
+        win.bind("<Destroy>", lambda e, k=key: self._open_dialogs.pop(k, None), add=True)
+
     def _open_multiselect_dialog(self, hdr):
         """Open a clean dark-mode picker with live search. Single click toggles selection."""
+        if self._focus_existing_dialog(f"multiselect_{hdr}"):
+            return
         info = self.field_widgets.get(hdr)
         if not info:
             return
@@ -477,6 +500,7 @@ class TabForm(DescMixin):
         visible_items = []   # starts empty; _rebuild_list() populates it
 
         win = tk.Toplevel(self.frame.winfo_toplevel())
+        self._track_dialog(f"multiselect_{hdr}", win)
         win.title(f"Select {hdr}")
         win.configure(bg=_BG)
         win.minsize(300, 400)
@@ -842,6 +866,8 @@ class TabForm(DescMixin):
         Uses a session-level cache so the full epic list is only fetched once
         per project.  A ↻ Refresh button lets the user re-fetch when needed.
         """
+        if self._focus_existing_dialog("epic_picker"):
+            return
         project_key = "SUNDANCE"
         try:
             info = self.field_widgets.get("Project key")
@@ -860,6 +886,7 @@ class TabForm(DescMixin):
             return
 
         win = tk.Toplevel(self.frame.winfo_toplevel())
+        self._track_dialog("epic_picker", win)
         win.title("Select Epic")
         win.geometry("620x520")
         win.resizable(True, True)
@@ -1070,6 +1097,8 @@ class TabForm(DescMixin):
         """Open a dialog to search ALL Jira tickets and assign selected ones
         as children of this epic.  The search queries Jira live (debounced)
         so even tickets not fetched locally appear in the results."""
+        if self._focus_existing_dialog("child_picker"):
+            return
         epic_key = ""
         try:
             v = getattr(self, "_epic_link_var", None)
@@ -1108,6 +1137,7 @@ class TabForm(DescMixin):
             pass
 
         win = tk.Toplevel(self.frame.winfo_toplevel())
+        self._track_dialog("child_picker", win)
         win.title(f"Add Child Issues to {epic_key}")
         win.geometry("700x560")
         win.resizable(True, True)

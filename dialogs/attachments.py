@@ -62,9 +62,13 @@ class AttachmentsMixin:
             return
 
         # ── window ──────────────────────────────────────────────────────────
-        win = tk.Toplevel(self)
-        self._register_toplevel(win)
         ticket_key = data.get("Issue key") or data.get("Summary") or "Ticket"
+        dlg_key = f"attachments_{ticket_key}"
+        if self._focus_existing_app_dialog(dlg_key):
+            return
+        win = tk.Toplevel(self)
+        self._track_app_dialog(dlg_key, win)
+        self._register_toplevel(win)
         win.title(f"Attachments — {ticket_key}")
         win.minsize(700, 480)
         win.geometry("860x560")

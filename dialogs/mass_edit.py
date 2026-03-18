@@ -26,6 +26,8 @@ class MassEditMixin:
 
     def _mass_edit_selected(self):
         """Open mass-edit dialog for checked/selected list-view issues."""
+        if self._focus_existing_app_dialog("mass_edit"):
+            return
         if not self.list_tree:
             return
         iids = self._get_selected_or_checked_iids()
@@ -45,6 +47,7 @@ class MassEditMixin:
             return
 
         dlg = tk.Toplevel(self)
+        self._track_app_dialog("mass_edit", dlg)
         self._register_toplevel(dlg)
         dlg.title(f"Mass Edit — {len(issues)} issue(s)")
         dlg.minsize(520, 480)

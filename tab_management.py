@@ -168,7 +168,10 @@ class TabManagementMixin:
         if not keys:
             messagebox.showinfo("Info", "No saved fields to remove.")
             return
+        if self._focus_existing_app_dialog("remove_field"):
+            return
         win = tk.Toplevel(self)
+        self._track_app_dialog("remove_field", win)
         self._register_toplevel(win)
         win.title("Remove Field From Template")
         win.minsize(380, 260)
@@ -678,7 +681,10 @@ class TabManagementMixin:
         if not rows:
             messagebox.showinfo("Info", "CSV has no rows.")
             return
+        if self._focus_existing_app_dialog("csv_import_tabs"):
+            return
         win = tk.Toplevel(self)
+        self._track_app_dialog("csv_import_tabs", win)
         self._register_toplevel(win)
         win.title("Select rows to open as tabs")
         win.minsize(500, 400)
@@ -725,7 +731,10 @@ class TabManagementMixin:
         if not rows:
             messagebox.showinfo("Info", "CSV has no rows.")
             return
+        if self._focus_existing_app_dialog("csv_import_row"):
+            return
         win = tk.Toplevel(self)
+        self._track_app_dialog("csv_import_row", win)
         self._register_toplevel(win)
         win.title("Select row to import into active tab")
         win.minsize(500, 350)

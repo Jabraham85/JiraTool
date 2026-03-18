@@ -14,7 +14,10 @@ class CredentialsMixin:
     """Mixin providing set_jira_credentials and clear_jira_credentials."""
 
     def set_jira_credentials(self, on_close=None):
+        if self._focus_existing_app_dialog("credentials"):
+            return
         dlg = tk.Toplevel(self)
+        self._track_app_dialog("credentials", dlg)
         self._register_toplevel(dlg)
         dlg.title("Set Jira API Credentials")
         dlg.minsize(500, 220)

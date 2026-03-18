@@ -482,10 +482,13 @@ class KanbanMixin:
     # ── column configuration dialog ────────────────────────────────────────
 
     def _kanban_column_config_dialog(self):
+        if self._focus_existing_app_dialog("kanban_config"):
+            return
         columns = copy.deepcopy(self._get_kanban_columns())
         all_statuses = sorted(self.meta.get("options", {}).get("Status", []))
 
         dlg = tk.Toplevel(self)
+        self._track_app_dialog("kanban_config", dlg)
         try:
             self._register_toplevel(dlg)
         except Exception:
