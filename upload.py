@@ -28,6 +28,22 @@ class UploadMixin:
             self.bundle_listbox.insert(tk.END, label)
         count = len(self.bundle)
         self.title(f"Avalanche Jira Template Creator ({count} in bundle)")
+        self._persist_bundle()
+
+    def _persist_bundle(self):
+        """Save current bundle to meta so it survives restarts."""
+        try:
+            self.meta["bundle"] = [dict(t) for t in self.bundle]
+            save_storage(self.templates, self.meta)
+        except Exception:
+            pass
+
+    def _restore_bundle(self):
+        """Load bundle from meta at startup."""
+        saved = self.meta.get("bundle")
+        if isinstance(saved, list) and saved:
+            self.bundle = list(saved)
+            self.update_bundle_listbox()
 
     def add_active_tab_to_bundle(self):
         tf = self.get_active_tabform()

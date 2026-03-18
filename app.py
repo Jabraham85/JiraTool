@@ -122,6 +122,7 @@ class AvalancheApp(
         # Flush all pending geometry so the window is fully painted before
         # any background work starts creating more widgets.
         self.update_idletasks()
+        self._restore_bundle()
         # Clean up leftover files from a previous update
         self._cleanup_old_update()
         if self.meta.get("first_run_done"):
