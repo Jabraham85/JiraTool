@@ -332,58 +332,21 @@ class UpdaterMixin:
         except Exception:
             pass
 
-        # Write a helper batch file that waits for this process to exit,
-        # then launches the new EXE and deletes itself.  This runs as a
-        # completely independent process — no parent/child relationship.
-        bat_path = os.path.join(target_dir, "_restart.bat")
-        pid = os.getpid()
+        # Launch the new EXE directly.  The file swap is already done so
+        # target_path points to the new binary.  PyInstaller runs from a
+        # temp _MEI dir, so the old process doesn't lock the EXE file.
         try:
-            with open(bat_path, "w") as bf:
-                bf.write("@echo off\r\n")
-                bf.write(f":wait\r\n")
-                bf.write(f'tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul\r\n')
-                bf.write(f"if not errorlevel 1 (\r\n")
-                bf.write(f"    timeout /t 1 /nobreak >nul\r\n")
-                bf.write(f"    goto wait\r\n")
-                bf.write(f")\r\n")
-                bf.write(f"timeout /t 3 /nobreak >nul\r\n")
-                bf.write(f'for /d %%D in ("%TEMP%\\_MEI*") do rmdir /s /q "%%D" 2>nul\r\n')
-                bf.write(f'start "" "{target_path}"\r\n')
-                bf.write(f'del "%~f0"\r\n')
+            os.startfile(target_path)
         except Exception:
-            debug_log("Failed to write restart batch: "
-                      + traceback.format_exc())
-
-        # Launch the batch file RIGHT NOW on this background thread,
-        # before any Tkinter main-thread interaction can corrupt state.
-        launched = False
-        try:
-            _sp.Popen(
-                ["cmd.exe", "/c", bat_path],
-                creationflags=(_sp.DETACHED_PROCESS
-                               | _sp.CREATE_NEW_PROCESS_GROUP
-                               | _sp.CREATE_NO_WINDOW),
-                stdin=_sp.DEVNULL,
-                stdout=_sp.DEVNULL,
-                stderr=_sp.DEVNULL,
-            )
-            launched = True
-        except Exception:
-            debug_log("Batch Popen failed: " + traceback.format_exc())
-
-        if not launched:
+            debug_log("startfile failed: " + traceback.format_exc())
             try:
-                os.startfile(bat_path)
-                launched = True
+                _sp.Popen(
+                    [target_path],
+                    creationflags=(_sp.DETACHED_PROCESS
+                                   | _sp.CREATE_NEW_PROCESS_GROUP),
+                    close_fds=True,
+                )
             except Exception:
-                debug_log("Batch startfile failed: " + traceback.format_exc())
+                debug_log("Popen fallback failed: " + traceback.format_exc())
 
-        if not launched:
-            try:
-                os.startfile(target_path)
-            except Exception:
-                debug_log("Direct startfile failed: " + traceback.format_exc())
-
-        # Hard-exit immediately.  The batch file polls our PID and will
-        # launch the new EXE only after we've fully exited.
         os._exit(0)
