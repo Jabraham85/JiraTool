@@ -332,21 +332,25 @@ class UpdaterMixin:
         except Exception:
             pass
 
-        # Launch the new EXE directly.  The file swap is already done so
-        # target_path points to the new binary.  PyInstaller runs from a
-        # temp _MEI dir, so the old process doesn't lock the EXE file.
+        # Launch the new EXE as a fully detached process, then exit.
+        import time as _time
         try:
-            os.startfile(target_path)
+            _sp.Popen(
+                [target_path],
+                creationflags=(_sp.DETACHED_PROCESS
+                               | _sp.CREATE_NEW_PROCESS_GROUP
+                               | _sp.CREATE_NO_WINDOW),
+                close_fds=True,
+                stdin=_sp.DEVNULL,
+                stdout=_sp.DEVNULL,
+                stderr=_sp.DEVNULL,
+            )
         except Exception:
-            debug_log("startfile failed: " + traceback.format_exc())
+            debug_log("Popen failed: " + traceback.format_exc())
             try:
-                _sp.Popen(
-                    [target_path],
-                    creationflags=(_sp.DETACHED_PROCESS
-                                   | _sp.CREATE_NEW_PROCESS_GROUP),
-                    close_fds=True,
-                )
+                os.startfile(target_path)
             except Exception:
-                debug_log("Popen fallback failed: " + traceback.format_exc())
+                debug_log("startfile fallback failed: " + traceback.format_exc())
 
+        _time.sleep(2)
         os._exit(0)
