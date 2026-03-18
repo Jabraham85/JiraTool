@@ -1,5 +1,5 @@
 {
-    "version": "1.4.5",
-    "download_url": "https://github.com/Jabraham85/JiraTool/releases/download/v1.4.5-exp/Avalanche.exe",
-    "changelog": "Fix update restart — bump APP_VERSION, use Popen with sleep before exit. Bundle persistence."
+    "version": "1.4.6",
+    "download_url": "https://github.com/Jabraham85/JiraTool/releases/download/v1.4.6-exp/Avalanche.exe",
+    "changelog": "Fix update loop — APP_VERSION now matches channel version. Invisible VBS restart (no console windows). Bundle persistence."
 }

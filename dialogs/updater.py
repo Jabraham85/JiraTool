@@ -332,25 +332,23 @@ class UpdaterMixin:
         except Exception:
             pass
 
-        # Launch the new EXE as a fully detached process, then exit.
-        import time as _time
+        # Spawn an invisible VBS helper that waits for us to die, then
+        # launches the new EXE.  wscript.exe is a GUI-subsystem process so
+        # no console window ever appears.
+        import tempfile as _tmp
+        vbs_path = os.path.join(_tmp.gettempdir(), "_avalanche_restart.vbs")
         try:
-            _sp.Popen(
-                [target_path],
-                creationflags=(_sp.DETACHED_PROCESS
-                               | _sp.CREATE_NEW_PROCESS_GROUP
-                               | _sp.CREATE_NO_WINDOW),
-                close_fds=True,
-                stdin=_sp.DEVNULL,
-                stdout=_sp.DEVNULL,
-                stderr=_sp.DEVNULL,
-            )
+            with open(vbs_path, "w") as _vf:
+                _vf.write('WScript.Sleep 3000\n')
+                _vf.write('Set sh = CreateObject("WScript.Shell")\n')
+                _vf.write(f'sh.Run """{target_path}""", 1, False\n')
+            _sp.Popen(["wscript", vbs_path])
+            debug_log("VBS restart helper launched")
         except Exception:
-            debug_log("Popen failed: " + traceback.format_exc())
+            debug_log("VBS restart failed: " + traceback.format_exc())
             try:
                 os.startfile(target_path)
             except Exception:
                 debug_log("startfile fallback failed: " + traceback.format_exc())
 
-        _time.sleep(2)
         os._exit(0)

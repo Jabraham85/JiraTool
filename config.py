@@ -2,7 +2,7 @@
 Avalanche Jira Template Creator — shared constants and configuration.
 """
 
-APP_VERSION = "1.4.4"
+APP_VERSION = "1.4.6"
 
 # Update channels — each points to its own version manifest on GitHub
 GITHUB_VERSION_URLS = {
