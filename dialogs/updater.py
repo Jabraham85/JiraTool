@@ -340,13 +340,14 @@ class UpdaterMixin:
         try:
             with open(bat_path, "w") as bf:
                 bf.write("@echo off\r\n")
-                # Wait for the old process (by PID) to exit, up to 10s
                 bf.write(f":wait\r\n")
                 bf.write(f'tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul\r\n')
                 bf.write(f"if not errorlevel 1 (\r\n")
                 bf.write(f"    timeout /t 1 /nobreak >nul\r\n")
                 bf.write(f"    goto wait\r\n")
                 bf.write(f")\r\n")
+                bf.write(f"timeout /t 3 /nobreak >nul\r\n")
+                bf.write(f'for /d %%D in ("%TEMP%\\_MEI*") do rmdir /s /q "%%D" 2>nul\r\n')
                 bf.write(f'start "" "{target_path}"\r\n')
                 bf.write(f'del "%~f0"\r\n')
         except Exception:
